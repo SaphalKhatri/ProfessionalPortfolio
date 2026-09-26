@@ -1,0 +1,104 @@
+# ==========================================
+# Production .gitignore for Full-Stack Developer
+# React / Vite + Node + Python / FastAPI / Django
+# ==========================================
+
+# ------------------------------------------
+# Environment Variables & Secrets (CRITICAL)
+# ------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.crt
+secrets.json
+firebase-debug.log
+service-account*.json
+
+# ------------------------------------------
+# Dependencies & Package Managers
+# ------------------------------------------
+node_modules/
+.pnp
+.pnp.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ------------------------------------------
+# Build Outputs & Bundles
+# ------------------------------------------
+dist/
+dist-ssr/
+build/
+out/
+*.local
+.vite/
+.turbo/
+.cache/
+
+# ------------------------------------------
+# Python Backend (FastAPI / Django / Celery)
+# ------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ------------------------------------------
+# Databases & Caches (PostgreSQL / SQLite / Redis)
+# ------------------------------------------
+*.sqlite3
+*.db
+dump.rdb
+*.sql.gz
+*.dump
+
+# ------------------------------------------
+# Operating System & File System Artifacts
+# ------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+[Dd]esktop.ini
+
+# ------------------------------------------
+# IDE & Code Editor Configurations
+# ------------------------------------------
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# ------------------------------------------
+# Logs & Diagnostics
+# ------------------------------------------
+logs/
+*.log
