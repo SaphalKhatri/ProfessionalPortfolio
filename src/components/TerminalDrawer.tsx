@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Terminal as TerminalIcon, Maximize2, Minimize2 } from 'lucide-react';
+import { X, Terminal as TerminalIcon, Maximize2, Minimize2, Camera, ExternalLink } from 'lucide-react';
 import { PERSONAL_INFO, PROJECTS_DATA, SKILLS_DATA } from '../data/portfolioData';
+import { MEMORIES_DATA, GOOGLE_DRIVE_FOLDER_URL } from '../data/memoriesData';
+import { PageId } from '../types/portfolio';
 
 interface TerminalDrawerProps {
   isOpen: boolean;
   onClose: () => void;
+  onNavigate?: (page: PageId) => void;
 }
 
 interface CommandHistoryItem {
@@ -12,7 +15,7 @@ interface CommandHistoryItem {
   output: React.ReactNode;
 }
 
-export const TerminalDrawer: React.FC<TerminalDrawerProps> = ({ isOpen, onClose }) => {
+export const TerminalDrawer: React.FC<TerminalDrawerProps> = ({ isOpen, onClose, onNavigate }) => {
   const [inputVal, setInputVal] = useState('');
   const [history, setHistory] = useState<CommandHistoryItem[]>([
     {
@@ -66,6 +69,7 @@ export const TerminalDrawer: React.FC<TerminalDrawerProps> = ({ isOpen, onClose 
             <p><span className="text-emerald-400 w-28 inline-block">bio</span> Print engineer summary & background</p>
             <p><span className="text-emerald-400 w-28 inline-block">skills</span> List core backend & distributed stack</p>
             <p><span className="text-emerald-400 w-28 inline-block">projects</span> List top production systems</p>
+            <p><span className="text-emerald-400 w-28 inline-block">memories</span> Photo dump & Google Drive college archive</p>
             <p><span className="text-emerald-400 w-28 inline-block">curl &lt;url&gt;</span> Simulated HTTP curl client (e.g. curl /health)</p>
             <p><span className="text-emerald-400 w-28 inline-block">python</span> Interactive Python command runner</p>
             <p><span className="text-emerald-400 w-28 inline-block">contact</span> Output email and direct coordinates</p>
@@ -107,6 +111,39 @@ export const TerminalDrawer: React.FC<TerminalDrawerProps> = ({ isOpen, onClose 
                 <span className="text-zinc-400"> — {p.tagline}</span>
               </div>
             ))}
+          </div>
+        );
+        break;
+
+      case 'memories':
+      case 'photos':
+        output = (
+          <div className="space-y-2 text-zinc-300 text-xs font-mono">
+            <div className="flex items-center justify-between text-sky-400 font-semibold">
+              <span>{MEMORIES_DATA.length} visual moments loaded from Google Drive archive</span>
+              {onNavigate && (
+                <button
+                  onClick={() => {
+                    onClose();
+                    onNavigate('memories');
+                  }}
+                  className="text-emerald-400 hover:underline flex items-center gap-1"
+                >
+                  <span>Open Gallery</span>
+                  <ExternalLink className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+            <div className="space-y-1 text-zinc-400">
+              {MEMORIES_DATA.slice(0, 4).map((m) => (
+                <div key={m.id} className="flex items-center gap-2">
+                  <span className="text-amber-400">[{m.date}]</span>
+                  <span className="text-zinc-200">{m.title}</span>
+                  <span className="text-zinc-500">({m.category})</span>
+                </div>
+              ))}
+              <p className="text-zinc-500 pt-1">+ {MEMORIES_DATA.length - 4} more college, hackathon & travel photos in gallery.</p>
+            </div>
           </div>
         );
         break;
@@ -231,7 +268,7 @@ export const TerminalDrawer: React.FC<TerminalDrawerProps> = ({ isOpen, onClose 
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6 bg-black/80 backdrop-blur-sm animate-fade-in">
       <div
         className={`w-full ${
-          isMaximized ? 'h-full max-w-none' : 'max-w-3xl h-[520px]'
+          isMaximized ? 'h-full max-w-none' : 'max-w-3xl h-130'
         } bg-[#0c0e10] border border-[#2d333b] rounded-t-lg sm:rounded-lg shadow-2xl flex flex-col overflow-hidden font-mono text-xs`}
       >
         {/* Terminal Header Bar */}

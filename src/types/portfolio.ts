@@ -1,4 +1,16 @@
-export type PageId = 'about' | 'projects' | 'skills' | 'bug-smasher' | 'api-explorer' | 'contact';
+export type PageId = 'about' | 'projects' | 'skills' | 'memories' | 'bug-smasher' | 'api-explorer' | 'contact';
+
+export interface MemoryItem {
+  id: string;
+  title: string;
+  caption: string;
+  date: string;
+  location?: string;
+  category: 'College' | 'Hackathons' | 'Campus Life' | 'Meetups' | 'Travel';
+  driveIdOrUrl: string;
+  aspectRatio?: 'tall' | 'wide' | 'square';
+  tags?: string[];
+}
 
 export interface ProjectItem {
   id: string;

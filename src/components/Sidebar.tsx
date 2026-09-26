@@ -15,7 +15,8 @@ import {
   Send, 
   User,
   Gamepad2,
-  Zap
+  Zap,
+  Camera
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -41,6 +42,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'about', label: 'about', icon: <User className="w-3.5 h-3.5" /> },
     { id: 'projects', label: 'projects', icon: <Layers className="w-3.5 h-3.5" />, badge: '4' },
     { id: 'skills', label: 'skills & architecture', icon: <Code2 className="w-3.5 h-3.5" /> },
+    { id: 'memories', label: 'memories & dump', icon: <Camera className="w-3.5 h-3.5" />, badge: 'new' },
     { id: 'bug-smasher', label: 'bug smasher', icon: <Gamepad2 className="w-3.5 h-3.5" />, badge: 'arcade' },
     { id: 'api-explorer', label: 'api playground', icon: <Zap className="w-3.5 h-3.5" /> },
     { id: 'contact', label: 'contact', icon: <Send className="w-3.5 h-3.5" /> },

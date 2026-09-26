@@ -8,6 +8,7 @@ import { SkillsPage } from './pages/SkillsPage';
 import { BugSmasherPage } from './pages/BugSmasherPage';
 import { ApiExplorerPage } from './pages/ApiExplorerPage';
 import { ContactPage } from './pages/ContactPage';
+import { MemoriesPage } from './pages/MemoriesPage';
 import { TerminalDrawer } from './components/TerminalDrawer';
 import { 
   Terminal, 
@@ -21,14 +22,15 @@ import {
   Send,
   ExternalLink,
   ChevronRight,
-  Gamepad2
+  Gamepad2,
+  Camera
 } from 'lucide-react';
 
 export default function App() {
   // Sync page state with window.location.hash
   const getInitialPage = (): PageId => {
     const hash = window.location.hash.replace('#', '') as PageId;
-    const validPages: PageId[] = ['about', 'projects', 'skills', 'bug-smasher', 'api-explorer', 'contact'];
+    const validPages: PageId[] = ['about', 'projects', 'skills', 'memories', 'bug-smasher', 'api-explorer', 'contact'];
     return validPages.includes(hash) ? hash : 'about';
   };
 
@@ -81,6 +83,8 @@ export default function App() {
         return <ProjectsPage />;
       case 'skills':
         return <SkillsPage />;
+      case 'memories':
+        return <MemoriesPage />;
       case 'bug-smasher':
         return <BugSmasherPage />;
       case 'api-explorer':
@@ -96,6 +100,7 @@ export default function App() {
     about: 'About',
     projects: 'Projects',
     skills: 'Skills & Architecture',
+    memories: 'Memories & Photo Dump',
     'bug-smasher': 'Bug Smasher Arcade',
     'api-explorer': 'API Playground',
     contact: 'Contact'
@@ -144,11 +149,11 @@ export default function App() {
 
       {/* Mobile Menu Dropdown */}
       {mobileMenuOpen && (
-        <div className="lg:hidden fixed inset-x-0 top-[53px] bg-[#0d1117] border-b border-[#21262d] z-30 p-4 space-y-1 shadow-2xl animate-fade-in font-mono text-xs">
+        <div className="lg:hidden fixed inset-x-0 top-13.25 bg-[#0d1117] border-b border-[#21262d] z-30 p-4 space-y-1 shadow-2xl animate-fade-in font-mono text-xs">
           <p className="text-[10px] uppercase text-[#6e7681] px-2 py-1 tracking-wider">
             Switch Page:
           </p>
-          {(['about', 'projects', 'skills', 'bug-smasher', 'api-explorer', 'contact'] as PageId[]).map((page) => (
+          {(['about', 'projects', 'skills', 'memories', 'bug-smasher', 'api-explorer', 'contact'] as PageId[]).map((page) => (
             <button
               key={page}
               onClick={() => handleNavigate(page)}
@@ -256,6 +261,7 @@ export default function App() {
       <TerminalDrawer
         isOpen={terminalOpen}
         onClose={() => setTerminalOpen(false)}
+        onNavigate={handleNavigate}
       />
     </div>
   );
