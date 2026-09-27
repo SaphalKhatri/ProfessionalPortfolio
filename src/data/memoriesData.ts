@@ -79,7 +79,7 @@ export const GOOGLE_DRIVE_FOLDER_URL = 'https://drive.google.com/drive/folders/Y
  * Optional default Google Apps Script Web App URL for automatic 1-folder sync.
  * Reads from VITE_DRIVE_SYNC_API_URL in your .env / production environment (hidden from GitHub).
  */
-export const DEFAULT_FOLDER_SYNC_API_URL = (import.meta.env.VITE_DRIVE_SYNC_API_URL as string) || '';
+export const DEFAULT_FOLDER_SYNC_API_URL = (import.meta.env.VITE_DRIVE_SYNC_API_URL as string) ;
 
 /**
  * Ready-to-deploy Google Apps Script snippet for automatic folder sync

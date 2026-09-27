@@ -432,20 +432,12 @@ export const MemoriesPage: React.FC = () => {
             <span>Bites, Brews & Memories</span>
           </button>
 
-          {/* Admin Badges */}
-          {isAdmin ? (
+          {/* Admin Badge (only when logged in) */}
+          {isAdmin && (
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-mono text-emerald-400">
               <Unlock className="w-3 h-3" />
               <span>Admin Mode Active ({allMemories.length} items)</span>
             </div>
-          ) : (
-            <button
-              onClick={() => setShowAdminAuthModal(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-800/80 border border-zinc-700/50 text-xs font-mono text-zinc-400 hover:text-zinc-200 transition-colors"
-            >
-              <Lock className="w-3 h-3" />
-              <span>Admin Mode</span>
-            </button>
           )}
 
           {syncUrl && (
