@@ -229,7 +229,7 @@ export const MemoriesPage: React.FC = () => {
       setAdminPasswordInput('');
       setAuthError(null);
     } else {
-      setAuthError('Incorrect admin password. Default is "admin".');
+      setAuthError('Incorrect admin password.');
     }
   };
 
@@ -1237,10 +1237,7 @@ export const MemoriesPage: React.FC = () => {
                 </div>
               )}
 
-              <div className="flex items-center justify-between text-[11px] text-zinc-500 font-mono">
-                <span>Default: <code className="text-zinc-400">admin</code></span>
-                <span className="text-zinc-500">Only visible to you</span>
-              </div>
+              
 
               <div className="flex gap-2 pt-1">
                 <button
