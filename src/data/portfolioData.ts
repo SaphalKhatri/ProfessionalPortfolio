@@ -1,4 +1,5 @@
 import { ProjectItem, SkillCategory, ExperienceItem } from '../types/portfolio';
+import saphalProfileImg from '../assets/images/saphal_profile.png';
 
 export const PERSONAL_INFO = {
   name: "Saphal Kumar Khatri",
@@ -10,7 +11,7 @@ export const PERSONAL_INFO = {
   github: "https://github.com/SaphalKhatri",
   linkedin: "https://www.linkedin.com/in/saphal-kumar-khatri-840764280/",
   status: "Open to backend software engineering roles & internships",
-  avatar: "/src/assets/images/saphal_profile.png",
+  avatar: saphalProfileImg,
   bioParagraphs: [
     "I am a full-stack software developer with a strong backend focus, specializing in Python, FastAPI, Django REST Framework, PostgreSQL, React, and Tailwind CSS. I enjoy building complete, production-oriented applications—from responsive user interfaces and REST APIs to database architecture, business logic, and asynchronous processing.",
     "My projects include building a content recommendation system using TF-IDF and cosine similarity, integrating Google Gemini AI with PostgreSQL-based caching, and designing asynchronous background processing with Celery and Redis. On the frontend, I build responsive interfaces using React and Tailwind CSS and connect them with backend REST APIs.",
