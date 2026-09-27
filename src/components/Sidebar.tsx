@@ -41,7 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems: { id: PageId; label: string; icon: React.ReactNode; badge?: string }[] = [
     { id: 'about', label: 'about', icon: <User className="w-3.5 h-3.5" /> },
     { id: 'projects', label: 'projects', icon: <Layers className="w-3.5 h-3.5" />, badge: '4' },
-    { id: 'skills', label: 'skills & architecture', icon: <Code2 className="w-3.5 h-3.5" /> },
+    { id: 'skills', label: 'skills', icon: <Code2 className="w-3.5 h-3.5" /> },
     { id: 'memories', label: 'memories & dump', icon: <Camera className="w-3.5 h-3.5" />, badge: 'new' },
     { id: 'bug-smasher', label: 'bug smasher', icon: <Gamepad2 className="w-3.5 h-3.5" />, badge: 'arcade' },
     { id: 'api-explorer', label: 'api playground', icon: <Zap className="w-3.5 h-3.5" /> },
@@ -56,7 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="relative group shrink-0 mb-0 lg:mb-5">
             <div className="w-20 h-20 lg:w-24 lg:h-24 rounded-full overflow-hidden border-2 border-[#2d333b] group-hover:border-sky-500/70 transition-colors duration-300 shadow-xl shadow-black/60 bg-[#1c2128]">
               <img 
-                src={PERSONAL_INFO.avatar} 
+                src={PERSONAL_INFO.avatar || '/saphal_profile.png'} 
                 alt={PERSONAL_INFO.name}
                 className="w-full h-full object-cover object-top"
                 onError={(e) => {
