@@ -40,6 +40,31 @@ export function resolveDriveImageUrl(input: string): string {
 }
 
 /**
+ * Extracts Drive File ID if present
+ */
+export function extractDriveFileId(input: string): string | null {
+  if (!input) return null;
+  const trimmed = input.trim();
+  const fileDMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (fileDMatch && fileDMatch[1]) return fileDMatch[1];
+  const idParamMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (idParamMatch && idParamMatch[1]) return idParamMatch[1];
+  if (!trimmed.includes('/') && trimmed.length >= 20) return trimmed;
+  return null;
+}
+
+/**
+ * Helper to get video embed preview link for Google Drive or direct video
+ */
+export function resolveDriveVideoPreviewUrl(input: string): string {
+  const fileId = extractDriveFileId(input);
+  if (fileId) {
+    return `https://drive.google.com/file/d/${fileId}/preview`;
+  }
+  return input;
+}
+
+/**
  * Public Google Drive Folder Link (Replace this with your own public Google Drive folder anytime!)
  */
 export const GOOGLE_DRIVE_FOLDER_URL = 'https://drive.google.com/drive/folders/YOUR_PUBLIC_FOLDER_ID';

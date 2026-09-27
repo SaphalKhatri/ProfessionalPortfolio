@@ -10,6 +10,7 @@ export interface MemoryItem {
   location?: string;
   category: MemoryCategory;
   driveIdOrUrl: string;
+  mediaType?: 'image' | 'video';
   aspectRatio?: 'tall' | 'wide' | 'square';
   tags?: string[];
 }

@@ -7,50 +7,44 @@ import {
   X, 
   ChevronLeft, 
   ChevronRight, 
-  FolderPlus, 
   Sparkles, 
   Check, 
   Search, 
-  RefreshCw,
-  Copy,
-  FolderGit2,
   AlertCircle,
   Key,
   Lock,
   Unlock,
   ShieldCheck,
   Eye,
-  EyeOff
+  EyeOff,
+  Plus,
+  Trash2,
+  Edit2,
+  Video,
+  Image as ImageIcon,
+  Download,
+  Upload,
+  Play
 } from 'lucide-react';
 import { MemoryItem, MemoryCategory } from '../types/portfolio';
 import { 
   MEMORIES_DATA, 
-  GOOGLE_DRIVE_FOLDER_URL, 
-  DEFAULT_FOLDER_SYNC_API_URL, 
-  GOOGLE_APPS_SCRIPT_SNIPPET, 
-  resolveDriveImageUrl 
+  resolveDriveImageUrl, 
+  resolveDriveVideoPreviewUrl,
+  extractDriveFileId
 } from '../data/memoriesData';
 
 type CategoryFilter = 'All' | MemoryCategory;
+
+const STORAGE_KEY = 'portfolio_custom_memories_v2';
+const PASSWORD_STORAGE_KEY = 'portfolio_memories_admin_password';
 
 export const MemoriesPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<CategoryFilter>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [showDriveHelper, setShowDriveHelper] = useState(false);
-  const [activeGuideTab, setActiveGuideTab] = useState<'script' | 'manual'>('script');
 
-  // Live Folder Sync State
-  const [syncUrl, setSyncUrl] = useState<string>(() => {
-    return localStorage.getItem('portfolio_drive_sync_url') || DEFAULT_FOLDER_SYNC_API_URL || '';
-  });
-  const [syncedMemories, setSyncedMemories] = useState<MemoryItem[]>([]);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncError, setSyncError] = useState<string | null>(null);
-  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
-  const [copiedCode, setCopiedCode] = useState(false);
-
-  // Admin State
+  // Admin authentication state
   const [isAdmin, setIsAdmin] = useState<boolean>(() => {
     return sessionStorage.getItem('portfolio_memories_admin') === 'true';
   });
@@ -59,11 +53,50 @@ export const MemoriesPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [adminSuccessMsg, setAdminSuccessMsg] = useState<string | null>(null);
+
+  // Password change state
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [newPasswordInput, setNewPasswordInput] = useState('');
 
+  // Manual Memories State (Stored in localStorage for instant persistent editing)
+  const [memories, setMemories] = useState<MemoryItem[]>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (e) {
+      console.error('Failed to parse local memories:', e);
+    }
+    return MEMORIES_DATA;
+  });
+
+  // Save to localStorage whenever memories change
+  const saveMemories = (newItems: MemoryItem[]) => {
+    setMemories(newItems);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newItems));
+  };
+
+  // Add / Edit Modal State
+  const [showItemModal, setShowItemModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<MemoryItem | null>(null);
+
+  // Form Fields
+  const [formTitle, setFormTitle] = useState('');
+  const [formCaption, setFormCaption] = useState('');
+  const [formDate, setFormDate] = useState('');
+  const [formLocation, setFormLocation] = useState('');
+  const [formCategory, setFormCategory] = useState<MemoryCategory>('Bites & Brew');
+  const [formMediaType, setFormMediaType] = useState<'image' | 'video'>('image');
+  const [formDriveUrl, setFormDriveUrl] = useState('');
+  const [formTags, setFormTags] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // Link tester preview in form
+  const [previewResolvedUrl, setPreviewResolvedUrl] = useState('');
+
   const getStoredAdminPassword = () => {
-    return localStorage.getItem('portfolio_memories_admin_password') || 'admin';
+    return localStorage.getItem(PASSWORD_STORAGE_KEY) || 'admin';
   };
 
   const handleAdminLogin = (e?: React.FormEvent) => {
@@ -76,14 +109,14 @@ export const MemoriesPage: React.FC = () => {
       setAdminPasswordInput('');
       setAuthError(null);
     } else {
-      setAuthError('Incorrect admin password. Please try again.');
+      setAuthError('Incorrect admin password. Default is "admin".');
     }
   };
 
   const handleAdminLogout = () => {
     setIsAdmin(false);
     sessionStorage.removeItem('portfolio_memories_admin');
-    setShowDriveHelper(false);
+    setShowItemModal(false);
     setShowChangePassword(false);
   };
 
@@ -93,93 +126,164 @@ export const MemoriesPage: React.FC = () => {
       setAuthError('Password cannot be empty.');
       return;
     }
-    localStorage.setItem('portfolio_memories_admin_password', newPasswordInput.trim());
+    localStorage.setItem(PASSWORD_STORAGE_KEY, newPasswordInput.trim());
     setNewPasswordInput('');
     setShowChangePassword(false);
     setAdminSuccessMsg('Admin password updated successfully!');
-    setTimeout(() => setAdminSuccessMsg(null), 3000);
+    setTimeout(() => setAdminSuccessMsg(null), 3500);
   };
 
-  // Link tester state
-  const [testLink, setTestLink] = useState('');
-  const [testResult, setTestResult] = useState<string | null>(null);
+  // Open modal for new item
+  const openNewItemModal = () => {
+    setEditingItem(null);
+    setFormTitle('');
+    setFormCaption('');
+    setFormDate(new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }).toUpperCase());
+    setFormLocation('Kathmandu, Nepal');
+    setFormCategory('Bites & Brew');
+    setFormMediaType('image');
+    setFormDriveUrl('');
+    setFormTags('Food, Cafe, Coffee');
+    setPreviewResolvedUrl('');
+    setFormError(null);
+    setShowItemModal(true);
+  };
+
+  // Open modal for editing existing item
+  const openEditItemModal = (item: MemoryItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingItem(item);
+    setFormTitle(item.title);
+    setFormCaption(item.caption);
+    setFormDate(item.date);
+    setFormLocation(item.location || '');
+    setFormCategory(item.category);
+    setFormMediaType(item.mediaType || 'image');
+    setFormDriveUrl(item.driveIdOrUrl);
+    setFormTags((item.tags || []).join(', '));
+    setPreviewResolvedUrl(
+      item.mediaType === 'video' 
+        ? resolveDriveVideoPreviewUrl(item.driveIdOrUrl) 
+        : resolveDriveImageUrl(item.driveIdOrUrl)
+    );
+    setFormError(null);
+    setShowItemModal(true);
+  };
+
+  // Delete item handler
+  const handleDeleteItem = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm('Are you sure you want to delete this memory?')) {
+      const updated = memories.filter(m => m.id !== id);
+      saveMemories(updated);
+    }
+  };
+
+  // Form submit handler
+  const handleSaveForm = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formTitle.trim()) {
+      setFormError('Please provide a title');
+      return;
+    }
+    if (!formDriveUrl.trim()) {
+      setFormError('Please paste a Google Drive file link, ID, or image URL');
+      return;
+    }
+
+    const tagsArray = formTags
+      .split(',')
+      .map(t => t.trim().replace(/^#/, ''))
+      .filter(Boolean);
+
+    if (editingItem) {
+      // Update existing item
+      const updated = memories.map(m => {
+        if (m.id === editingItem.id) {
+          return {
+            ...m,
+            title: formTitle.trim(),
+            caption: formCaption.trim(),
+            date: formDate.trim() || 'RECENT',
+            location: formLocation.trim() || undefined,
+            category: formCategory,
+            mediaType: formMediaType,
+            driveIdOrUrl: formDriveUrl.trim(),
+            tags: tagsArray
+          };
+        }
+        return m;
+      });
+      saveMemories(updated);
+      setAdminSuccessMsg(`Updated "${formTitle}"`);
+    } else {
+      // Create new item
+      const newItem: MemoryItem = {
+        id: 'mem_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+        title: formTitle.trim(),
+        caption: formCaption.trim(),
+        date: formDate.trim() || 'RECENT',
+        location: formLocation.trim() || undefined,
+        category: formCategory,
+        mediaType: formMediaType,
+        driveIdOrUrl: formDriveUrl.trim(),
+        tags: tagsArray
+      };
+      saveMemories([newItem, ...memories]);
+      setAdminSuccessMsg(`Added "${formTitle}" to ${formCategory}!`);
+    }
+
+    setTimeout(() => setAdminSuccessMsg(null), 3500);
+    setShowItemModal(false);
+  };
+
+  // Update preview on link change
+  const handleDriveUrlChange = (val: string) => {
+    setFormDriveUrl(val);
+    if (!val.trim()) {
+      setPreviewResolvedUrl('');
+      return;
+    }
+    if (formMediaType === 'video') {
+      setPreviewResolvedUrl(resolveDriveVideoPreviewUrl(val));
+    } else {
+      setPreviewResolvedUrl(resolveDriveImageUrl(val));
+    }
+  };
+
+  // Export current list to clipboard as TypeScript code (so you can paste into memoriesData.ts if desired)
+  const handleExportCode = () => {
+    const code = `export const MEMORIES_DATA: MemoryItem[] = ${JSON.stringify(memories, null, 2)};\n`;
+    navigator.clipboard.writeText(code);
+    setAdminSuccessMsg('Copied TypeScript code to clipboard! You can paste it into memoriesData.ts.');
+    setTimeout(() => setAdminSuccessMsg(null), 4000);
+  };
+
+  // Import JSON backup
+  const handleImportJson = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string);
+        if (Array.isArray(parsed)) {
+          saveMemories(parsed);
+          setAdminSuccessMsg(`Successfully imported ${parsed.length} items!`);
+          setTimeout(() => setAdminSuccessMsg(null), 3500);
+        } else {
+          alert('Invalid format. File must contain an array of memory objects.');
+        }
+      } catch (err) {
+        alert('Could not parse JSON file.');
+      }
+    };
+    reader.readAsText(file);
+  };
 
   const categories: CategoryFilter[] = ['All', 'Bites & Brew', 'Hackathons', 'Campus Life', 'Meetups', 'Travel'];
 
-  // Fetch live memories from Apps Script
-  const fetchLiveMemories = async (endpointUrl: string) => {
-    if (!endpointUrl || !endpointUrl.startsWith('http')) return;
-    setIsSyncing(true);
-    setSyncError(null);
-
-    try {
-      const res = await fetch(endpointUrl);
-      if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to reach Drive script`);
-      const data = await res.json();
-
-      const smartCategorize = (items: MemoryItem[]): MemoryItem[] => {
-        return items.map((item) => {
-          const name = item.title.toLowerCase();
-          let category: MemoryItem['category'] = item.category || 'Bites & Brew';
-          const autoTags = new Set<string>(item.tags || ['DriveSync']);
-
-          if (name.includes('coffee') || name.includes('brew') || name.includes('cafe') || name.includes('food') || name.includes('momo') || name.includes('pizza') || name.includes('laphing') || name.includes('tea') || name.includes('burger') || name.includes('latte') || name.includes('snack') || name.includes('eat') || name.includes('restaurant')) {
-            category = 'Bites & Brew';
-            autoTags.add('Food');
-            autoTags.add('BitesAndBrew');
-          } else if (name.includes('hack') || name.includes('code') || name.includes('dev') || name.includes('win') || name.includes('demo')) {
-            category = 'Hackathons';
-            autoTags.add('Hackathon');
-          } else if (name.includes('travel') || name.includes('trip') || name.includes('tour') || name.includes('hike') || name.includes('trek') || name.includes('pokhara') || name.includes('mountain') || name.includes('vacation')) {
-            category = 'Travel';
-            autoTags.add('Travel');
-          } else if (name.includes('meetup') || name.includes('talk') || name.includes('conf') || name.includes('community') || name.includes('python') || name.includes('speaker')) {
-            category = 'Meetups';
-            autoTags.add('Community');
-          } else if (name.includes('campus') || name.includes('canteen') || name.includes('hostel') || name.includes('friend') || name.includes('bunk') || name.includes('fun')) {
-            category = 'Campus Life';
-            autoTags.add('CampusLife');
-          }
-
-          return {
-            ...item,
-            category,
-            tags: Array.from(autoTags)
-          };
-        });
-      };
-
-      if (data && Array.isArray(data.data)) {
-        setSyncedMemories(smartCategorize(data.data));
-        setLastSyncedAt(new Date());
-      } else if (Array.isArray(data)) {
-        setSyncedMemories(smartCategorize(data));
-        setLastSyncedAt(new Date());
-      } else if (data.status === 'error') {
-        throw new Error(data.message || 'Google Drive script error');
-      }
-    } catch (err: any) {
-      console.warn('Drive sync error:', err);
-      setSyncError(err.message || 'Could not fetch from Drive script');
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  useEffect(() => {
-    if (syncUrl) {
-      fetchLiveMemories(syncUrl);
-    }
-  }, [syncUrl]);
-
-  // Combine static curated memories with live synced ones
-  const allMemories = React.useMemo(() => {
-    const existingIds = new Set(syncedMemories.map(m => m.id));
-    const curatedFiltered = MEMORIES_DATA.filter(m => !existingIds.has(m.id));
-    return [...syncedMemories, ...curatedFiltered];
-  }, [syncedMemories]);
-
-  const filteredMemories = allMemories.filter((item) => {
+  const filteredMemories = memories.filter((item) => {
     const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
     const matchesSearch = 
       item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -214,27 +318,6 @@ export const MemoriesPage: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [lightboxIndex, filteredMemories.length]);
 
-  const handleTestDriveLink = () => {
-    if (!testLink.trim()) return;
-    const resolved = resolveDriveImageUrl(testLink);
-    setTestResult(resolved);
-  };
-
-  const handleSaveSyncUrl = (newUrl: string) => {
-    const trimmed = newUrl.trim();
-    setSyncUrl(trimmed);
-    localStorage.setItem('portfolio_drive_sync_url', trimmed);
-    if (trimmed) {
-      fetchLiveMemories(trimmed);
-    }
-  };
-
-  const handleCopyCode = () => {
-    navigator.clipboard.writeText(GOOGLE_APPS_SCRIPT_SNIPPET);
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 2000);
-  };
-
   const currentLightboxItem = lightboxIndex !== null ? filteredMemories[lightboxIndex] : null;
 
   return (
@@ -258,26 +341,26 @@ export const MemoriesPage: React.FC = () => {
           </button>
 
           {/* Admin Badges */}
-          {isAdmin && (
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-xs font-mono text-amber-400">
+          {isAdmin ? (
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-mono text-emerald-400">
               <Unlock className="w-3 h-3" />
-              <span>Admin Mode</span>
+              <span>Admin Mode Active ({memories.length} items)</span>
             </div>
+          ) : (
+            <button
+              onClick={() => setShowAdminAuthModal(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-800/80 border border-zinc-700/50 text-xs font-mono text-zinc-400 hover:text-zinc-200 transition-colors"
+            >
+              <Lock className="w-3 h-3" />
+              <span>Admin Login</span>
+            </button>
           )}
 
-          {isAdmin && (
-            syncUrl ? (
-              <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-mono text-emerald-400">
-                <span className={`w-1.5 h-1.5 rounded-full bg-emerald-400 ${isSyncing ? 'animate-ping' : ''}`} />
-                <span>Drive Auto-Sync Active</span>
-                {syncedMemories.length > 0 && <span>({syncedMemories.length} live)</span>}
-              </div>
-            ) : (
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-800/80 border border-zinc-700/50 text-xs font-mono text-zinc-400">
-                <FolderGit2 className="w-3 h-3 text-amber-400" />
-                <span>Manual / Pre-configured</span>
-              </div>
-            )
+          {adminSuccessMsg && (
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-mono animate-fade-in">
+              <Check className="w-3 h-3" />
+              <span>{adminSuccessMsg}</span>
+            </div>
           )}
         </div>
 
@@ -299,42 +382,42 @@ export const MemoriesPage: React.FC = () => {
             </p>
           </div>
 
-          {/* Action CTAs */}
-          <div className="flex items-center gap-2.5 shrink-0">
+          {/* Admin Action Bar */}
+          <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
             {isAdmin ? (
               <>
-                {syncUrl && (
-                  <button
-                    onClick={() => fetchLiveMemories(syncUrl)}
-                    disabled={isSyncing}
-                    className="px-3 py-2 rounded-md bg-[#161b22] hover:bg-[#21262d] text-zinc-300 hover:text-white border border-[#30363d] text-xs font-mono flex items-center gap-1.5 transition-all shadow-sm"
-                    title="Refresh photos from Drive"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isSyncing ? 'animate-spin' : ''}`} />
-                    <span>{isSyncing ? 'Syncing...' : 'Sync Now'}</span>
-                  </button>
-                )}
-
                 <button
-                  onClick={() => setShowDriveHelper(true)}
-                  className="px-3.5 py-2 rounded-md bg-[#161b22] hover:bg-[#21262d] text-zinc-300 hover:text-white border border-[#30363d] text-xs font-mono flex items-center gap-2 transition-all shadow-sm"
-                  title="How to connect your Google Drive folder"
+                  onClick={openNewItemModal}
+                  className="px-3.5 py-2 rounded-md bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-mono font-semibold flex items-center gap-1.5 transition-all shadow-md shadow-sky-500/20"
                 >
-                  <FolderPlus className="w-3.5 h-3.5 text-sky-400" />
-                  <span>Drive Setup</span>
+                  <Plus className="w-4 h-4" />
+                  <span>Add Photo / Video</span>
                 </button>
 
-                <a
-                  href={GOOGLE_DRIVE_FOLDER_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3.5 py-2 rounded-md bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-mono font-semibold flex items-center gap-1.5 transition-all shadow-md hover:shadow-sky-500/20"
+                <button
+                  onClick={handleExportCode}
+                  className="p-2 rounded-md bg-[#161b22] hover:bg-[#21262d] text-zinc-300 hover:text-white border border-[#30363d] text-xs font-mono transition-colors"
+                  title="Export to TypeScript / Clipboard"
                 >
-                  <span>Drive Album</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
+                  <Download className="w-3.5 h-3.5" />
+                </button>
 
-                {/* Lock Admin Mode Button */}
+                <label 
+                  className="p-2 rounded-md bg-[#161b22] hover:bg-[#21262d] text-zinc-300 hover:text-white border border-[#30363d] text-xs font-mono cursor-pointer transition-colors"
+                  title="Import JSON backup"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <input type="file" accept=".json" onChange={handleImportJson} className="hidden" />
+                </label>
+
+                <button
+                  onClick={() => setShowChangePassword(!showChangePassword)}
+                  className="p-2 rounded-md bg-[#161b22] hover:bg-[#21262d] text-zinc-400 hover:text-sky-400 border border-[#30363d] text-xs font-mono transition-colors"
+                  title="Change Password"
+                >
+                  <Key className="w-3.5 h-3.5" />
+                </button>
+
                 <button
                   onClick={handleAdminLogout}
                   className="p-2 rounded-md bg-[#161b22] hover:bg-rose-500/10 text-zinc-400 hover:text-rose-400 border border-[#30363d] text-xs font-mono transition-colors"
@@ -347,20 +430,24 @@ export const MemoriesPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Sync notification if error - only visible to admin */}
-        {isAdmin && syncError && (
-          <div className="p-3 rounded-md bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-mono flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-              <span>Sync note: {syncError}. Showing default gallery.</span>
-            </div>
-            <button 
-              onClick={() => setShowDriveHelper(true)}
-              className="text-xs text-sky-400 hover:underline"
+        {/* Change Password Inline Bar */}
+        {isAdmin && showChangePassword && (
+          <form onSubmit={handleChangePassword} className="p-3 bg-[#161b22] border border-sky-500/30 rounded-lg flex items-center gap-3 text-xs font-mono animate-fade-in max-w-md">
+            <span className="text-zinc-300 shrink-0">New Password:</span>
+            <input
+              type="password"
+              placeholder="Enter new admin password..."
+              value={newPasswordInput}
+              onChange={(e) => setNewPasswordInput(e.target.value)}
+              className="flex-1 px-3 py-1.5 bg-[#0d1117] border border-[#30363d] rounded text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-sky-500 text-xs"
+            />
+            <button
+              type="submit"
+              className="px-3 py-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold rounded text-xs transition-colors shrink-0"
             >
-              Check Script Setup
+              Update
             </button>
-          </div>
+          </form>
         )}
       </section>
 
@@ -370,8 +457,8 @@ export const MemoriesPage: React.FC = () => {
         <div className="flex items-center gap-1.5 overflow-x-auto pb-2 sm:pb-0 text-xs font-mono no-scrollbar">
           {categories.map((cat) => {
             const count = cat === 'All' 
-              ? allMemories.length 
-              : allMemories.filter(m => m.category === cat).length;
+              ? memories.length 
+              : memories.filter(m => m.category === cat).length;
             const isActive = selectedCategory === cat;
             return (
               <button
@@ -418,52 +505,74 @@ export const MemoriesPage: React.FC = () => {
         {filteredMemories.length === 0 ? (
           <div className="py-20 text-center space-y-3 bg-[#161b22]/40 rounded-lg border border-[#21262d] px-6">
             <Camera className="w-10 h-10 text-sky-400/60 mx-auto" />
-            <p className="text-zinc-200 font-serif text-lg font-semibold">No photos in Bites & Brew yet</p>
+            <p className="text-zinc-200 font-serif text-lg font-semibold">No media in this section yet</p>
             <p className="text-xs font-mono text-zinc-400 max-w-md mx-auto leading-relaxed">
-              Connect your Google Drive folder or drop your photo links to display your favorite food spots, coffee shops, and travel moments here.
+              {isAdmin 
+                ? 'Click "Add Photo / Video" above to paste your Google Drive links and assign custom titles & tags!'
+                : 'Unlock admin mode (press Ctrl+Shift+A or double-click the header) to add your custom photos and videos.'
+              }
             </p>
             {isAdmin && (
               <button
-                onClick={() => setShowDriveHelper(true)}
+                onClick={openNewItemModal}
                 className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-md bg-sky-500 hover:bg-sky-400 text-slate-950 font-mono text-xs font-semibold transition-all"
               >
-                <FolderPlus className="w-4 h-4" />
-                <span>Connect Google Drive Folder</span>
+                <Plus className="w-4 h-4" />
+                <span>Add Your First Photo / Video</span>
               </button>
             )}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredMemories.map((item, idx) => {
+              const isVideo = item.mediaType === 'video';
               const imageUrl = resolveDriveImageUrl(item.driveIdOrUrl);
+              const videoEmbedUrl = resolveDriveVideoPreviewUrl(item.driveIdOrUrl);
+
               return (
                 <div
                   key={item.id || idx}
                   onClick={() => setLightboxIndex(idx)}
                   className="group relative bg-[#161b22] border border-[#21262d] hover:border-sky-500/50 rounded-lg overflow-hidden flex flex-col cursor-pointer transition-all duration-300 hover:shadow-xl hover:shadow-sky-500/5 hover:-translate-y-1"
                 >
-                  {/* Photo Container */}
+                  {/* Photo / Video Container */}
                   <div className="relative aspect-4/3 bg-zinc-950 overflow-hidden">
-                    <img
-                      src={imageUrl}
-                      alt={item.title}
-                      loading="lazy"
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500 brightness-95 group-hover:brightness-105"
-                      onError={(e) => {
-                        // Fallback to placeholder if an unshared Drive link fails
-                        (e.target as HTMLImageElement).src =
-                          'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=800&q=80';
-                      }}
-                    />
+                    {isVideo ? (
+                      <div className="w-full h-full relative flex items-center justify-center bg-zinc-950">
+                        <iframe
+                          src={videoEmbedUrl}
+                          className="w-full h-full pointer-events-none border-0"
+                          title={item.title}
+                          loading="lazy"
+                        />
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center group-hover:bg-black/20 transition-all">
+                          <div className="w-12 h-12 rounded-full bg-sky-500/80 backdrop-blur-md flex items-center justify-center text-slate-950 shadow-lg group-hover:scale-110 transition-transform">
+                            <Play className="w-5 h-5 fill-slate-950 ml-0.5" />
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <img
+                        src={imageUrl}
+                        alt={item.title}
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500 brightness-95 group-hover:brightness-105"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src =
+                            'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=800&q=80';
+                        }}
+                      />
+                    )}
                     
                     {/* Dark gradient overlay for contrast */}
-                    <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-black/20 opacity-80 group-hover:opacity-60 transition-opacity" />
+                    <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-black/20 opacity-80 group-hover:opacity-60 transition-opacity pointer-events-none" />
 
                     {/* Category & Date badge on image */}
-                    <div className="absolute top-3 left-3 right-3 flex items-center justify-between text-[11px] font-mono">
-                      <span className="px-2 py-0.5 rounded bg-black/60 backdrop-blur-md text-sky-300 border border-white/10">
-                        {item.category}
+                    <div className="absolute top-3 left-3 right-3 flex items-center justify-between text-[11px] font-mono pointer-events-none">
+                      <span className="px-2 py-0.5 rounded bg-black/60 backdrop-blur-md text-sky-300 border border-white/10 flex items-center gap-1">
+                        {isVideo ? <Video className="w-3 h-3 text-sky-400" /> : <ImageIcon className="w-3 h-3 text-sky-400" />}
+                        <span>{item.category}</span>
                       </span>
                       <span className="px-2 py-0.5 rounded bg-black/60 backdrop-blur-md text-zinc-300 border border-white/10">
                         {item.date}
@@ -471,9 +580,29 @@ export const MemoriesPage: React.FC = () => {
                     </div>
 
                     {item.location && (
-                      <div className="absolute bottom-3 left-3 flex items-center gap-1 text-[11px] font-mono text-zinc-300 drop-shadow">
+                      <div className="absolute bottom-3 left-3 flex items-center gap-1 text-[11px] font-mono text-zinc-300 drop-shadow pointer-events-none">
                         <MapPin className="w-3 h-3 text-sky-400" />
                         <span>{item.location}</span>
+                      </div>
+                    )}
+
+                    {/* Admin Action Buttons on Card */}
+                    {isAdmin && (
+                      <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1 z-10">
+                        <button
+                          onClick={(e) => openEditItemModal(item, e)}
+                          className="p-1.5 rounded-md bg-black/70 hover:bg-sky-500 text-zinc-300 hover:text-slate-950 backdrop-blur-md border border-white/10 transition-colors"
+                          title="Edit Title, Tags & Media"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => handleDeleteItem(item.id, e)}
+                          className="p-1.5 rounded-md bg-black/70 hover:bg-rose-500 text-zinc-300 hover:text-white backdrop-blur-md border border-white/10 transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     )}
                   </div>
@@ -492,7 +621,7 @@ export const MemoriesPage: React.FC = () => {
                     {/* Tags */}
                     {item.tags && item.tags.length > 0 && (
                       <div className="flex flex-wrap gap-1 pt-3">
-                        {item.tags.slice(0, 3).map((tag) => (
+                        {item.tags.slice(0, 4).map((tag) => (
                           <span
                             key={tag}
                             className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#0d1117] text-zinc-400 border border-[#21262d]"
@@ -500,9 +629,9 @@ export const MemoriesPage: React.FC = () => {
                             #{tag}
                           </span>
                         ))}
-                        {item.tags.length > 3 && (
+                        {item.tags.length > 4 && (
                           <span className="text-[10px] font-mono text-zinc-500">
-                            +{item.tags.length - 3}
+                            +{item.tags.length - 4}
                           </span>
                         )}
                       </div>
@@ -553,14 +682,24 @@ export const MemoriesPage: React.FC = () => {
 
           {/* Lightbox Card Container */}
           <div className="max-w-4xl w-full max-h-[90vh] bg-[#0e1117] border border-[#2d333b] rounded-xl overflow-hidden flex flex-col md:flex-row shadow-2xl">
-            {/* Image Stage */}
+            {/* Image / Video Stage */}
             <div className="md:w-3/5 bg-black flex items-center justify-center relative min-h-75 md:min-h-120">
-              <img
-                src={resolveDriveImageUrl(currentLightboxItem.driveIdOrUrl)}
-                alt={currentLightboxItem.title}
-                referrerPolicy="no-referrer"
-                className="max-h-[75vh] w-auto object-contain mx-auto"
-              />
+              {currentLightboxItem.mediaType === 'video' ? (
+                <iframe
+                  src={resolveDriveVideoPreviewUrl(currentLightboxItem.driveIdOrUrl)}
+                  className="w-full h-full min-h-80 border-0"
+                  allow="autoplay; encrypted-media"
+                  allowFullScreen
+                  title={currentLightboxItem.title}
+                />
+              ) : (
+                <img
+                  src={resolveDriveImageUrl(currentLightboxItem.driveIdOrUrl)}
+                  alt={currentLightboxItem.title}
+                  referrerPolicy="no-referrer"
+                  className="max-h-[75vh] w-auto object-contain mx-auto"
+                />
+              )}
             </div>
 
             {/* Sidebar Details */}
@@ -614,12 +753,16 @@ export const MemoriesPage: React.FC = () => {
               {/* Lightbox Footer Actions */}
               <div className="pt-4 border-t border-[#22272e] flex items-center justify-between text-xs font-mono">
                 <a
-                  href={resolveDriveImageUrl(currentLightboxItem.driveIdOrUrl)}
+                  href={
+                    currentLightboxItem.mediaType === 'video'
+                      ? resolveDriveVideoPreviewUrl(currentLightboxItem.driveIdOrUrl)
+                      : resolveDriveImageUrl(currentLightboxItem.driveIdOrUrl)
+                  }
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sky-400 hover:text-sky-300 flex items-center gap-1"
                 >
-                  <span>Open Full Resolution</span>
+                  <span>Open Full Link</span>
                   <ExternalLink className="w-3.5 h-3.5" />
                 </a>
 
@@ -630,273 +773,205 @@ export const MemoriesPage: React.FC = () => {
         </div>
       )}
 
-      {/* Google Drive Integration Guidance Modal */}
-      {showDriveHelper && (
+      {/* Add / Edit Memory Modal (Admin Only) */}
+      {isAdmin && showItemModal && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-fade-in">
-          <div className="max-w-2xl w-full bg-[#161b22] border border-[#2d333b] rounded-lg shadow-2xl p-5 sm:p-6 space-y-5 font-sans max-h-[92vh] overflow-y-auto">
-            {/* Modal Header */}
+          <div className="max-w-xl w-full bg-[#161b22] border border-[#2d333b] rounded-xl shadow-2xl p-5 sm:p-6 space-y-4 max-h-[92vh] overflow-y-auto font-sans">
             <div className="flex items-center justify-between pb-3 border-b border-[#21262d]">
               <div className="flex items-center gap-2">
-                <FolderPlus className="w-5 h-5 text-sky-400" />
+                <Sparkles className="w-5 h-5 text-sky-400" />
                 <h3 className="font-serif font-bold text-lg text-zinc-100">
-                  Google Drive Photo Integration
+                  {editingItem ? 'Edit Memory Details' : 'Add New Photo / Video'}
                 </h3>
               </div>
               <button
-                onClick={() => setShowDriveHelper(false)}
+                onClick={() => setShowItemModal(false)}
                 className="p-1 text-zinc-400 hover:text-white"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Tabs */}
-            <div className="flex border-b border-[#2d333b] text-xs font-mono">
-              <button
-                onClick={() => setActiveGuideTab('script')}
-                className={`px-4 py-2 border-b-2 font-semibold transition-colors flex items-center gap-1.5 ${
-                  activeGuideTab === 'script'
-                    ? 'border-sky-400 text-sky-400'
-                    : 'border-transparent text-zinc-400 hover:text-zinc-200'
-                }`}
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>1-Folder Automatic Sync (Option 1)</span>
-              </button>
-              <button
-                onClick={() => setActiveGuideTab('manual')}
-                className={`px-4 py-2 border-b-2 font-semibold transition-colors flex items-center gap-1.5 ${
-                  activeGuideTab === 'manual'
-                    ? 'border-sky-400 text-sky-400'
-                    : 'border-transparent text-zinc-400 hover:text-zinc-200'
-                }`}
-              >
-                <span>Manual Links & Tester</span>
-              </button>
-            </div>
-
-            {activeGuideTab === 'script' ? (
-              <div className="space-y-4 text-xs font-mono">
-                <div className="p-3 rounded-md bg-sky-950/20 border border-sky-500/20 text-sky-300 font-sans leading-relaxed">
-                  <strong>How it works:</strong> You upload photos into <strong>one Google Drive folder</strong> from your phone or PC. A free Google Apps Script serves that folder as JSON. Your portfolio fetches it automatically in real time!
+            <form onSubmit={handleSaveForm} className="space-y-4 text-xs font-mono">
+              {formError && (
+                <div className="p-2.5 rounded bg-rose-500/10 border border-rose-500/30 text-rose-300 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{formError}</span>
                 </div>
+              )}
 
-                <div className="space-y-3 font-sans text-xs">
-                  <div className="flex gap-3 items-start">
-                    <span className="w-5 h-5 rounded-full bg-sky-500/20 text-sky-400 font-mono font-bold flex items-center justify-center shrink-0">1</span>
-                    <div>
-                      <p className="font-semibold text-zinc-200">Create a Google Drive Folder & make it public</p>
-                      <p className="text-zinc-400 mt-0.5">
-                        Create a folder (e.g. <code>Bites and Brew</code>). Right click → <strong className="text-zinc-200">Share</strong> → Set General Access to <span className="text-emerald-400">&quot;Anyone with the link can view&quot;</span>. Copy the folder URL.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-3 items-start">
-                    <span className="w-5 h-5 rounded-full bg-sky-500/20 text-sky-400 font-mono font-bold flex items-center justify-center shrink-0">2</span>
-                    <div>
-                      <p className="font-semibold text-zinc-200">Create a Google Apps Script</p>
-                      <p className="text-zinc-400 mt-0.5">
-                        Open <a href="https://script.google.com" target="_blank" rel="noreferrer" className="text-sky-400 underline">script.google.com</a> → Click <strong className="text-zinc-200">New project</strong>. Paste the snippet below into the editor and replace <code>YOUR_FOLDER_ID_HERE</code> with the ID from your folder link.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Copyable Code Box */}
-                  <div className="relative rounded-md bg-[#0a0c10] border border-[#2d333b] p-3 text-zinc-300 font-mono text-[11px] overflow-x-auto">
-                    <button
-                      onClick={handleCopyCode}
-                      className="absolute top-2.5 right-2.5 px-2 py-1 rounded bg-[#21262d] hover:bg-[#30363d] text-zinc-300 hover:text-white flex items-center gap-1 text-[11px] transition-colors"
-                    >
-                      {copiedCode ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                      <span>{copiedCode ? 'Copied!' : 'Copy Script'}</span>
-                    </button>
-                    <pre className="pr-20 max-h-44 overflow-y-auto leading-relaxed text-zinc-300">
-                      {GOOGLE_APPS_SCRIPT_SNIPPET}
-                    </pre>
-                  </div>
-
-                  <div className="flex gap-3 items-start">
-                    <span className="w-5 h-5 rounded-full bg-sky-500/20 text-sky-400 font-mono font-bold flex items-center justify-center shrink-0">3</span>
-                    <div>
-                      <p className="font-semibold text-zinc-200">Deploy as a Web App</p>
-                      <p className="text-zinc-400 mt-0.5">
-                        In Apps Script, click <strong className="text-zinc-200">Deploy → New deployment</strong>. Select type <strong>Web App</strong>. Set:
-                      </p>
-                      <ul className="list-disc list-inside text-zinc-400 mt-1 pl-1 space-y-0.5">
-                        <li>Execute as: <span className="text-zinc-200">Me</span></li>
-                        <li>Who has access: <span className="text-emerald-400 font-semibold">Anyone</span> (Crucial!)</li>
-                      </ul>
-                      <p className="text-zinc-400 mt-1">Copy the resulting Web App URL (ends with <code>/exec</code>).</p>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-3 items-start">
-                    <span className="w-5 h-5 rounded-full bg-sky-500/20 text-sky-400 font-mono font-bold flex items-center justify-center shrink-0">4</span>
-                    <div className="w-full">
-                      <p className="font-semibold text-zinc-200">Paste your Web App URL here:</p>
-                      <div className="flex gap-2 mt-2">
-                        <input
-                          type="text"
-                          placeholder="https://script.google.com/macros/s/.../exec"
-                          value={syncUrl}
-                          onChange={(e) => setSyncUrl(e.target.value)}
-                          className="flex-1 px-3 py-1.5 text-xs font-mono bg-[#0d1117] border border-[#21262d] rounded text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-sky-500"
-                        />
-                        <button
-                          onClick={() => handleSaveSyncUrl(syncUrl)}
-                          className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-mono font-semibold rounded shrink-0 transition-colors"
-                        >
-                          Save & Sync
-                        </button>
-                      </div>
-                      {lastSyncedAt && (
-                        <p className="text-[11px] font-mono text-emerald-400 mt-1.5 flex items-center gap-1">
-                          <Check className="w-3 h-3" />
-                          <span>Active: Last fetched at {lastSyncedAt.toLocaleTimeString()} ({syncedMemories.length} photos)</span>
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4 text-xs font-mono">
-                {/* Manual 3 Step Instruction */}
-                <div className="space-y-3 font-sans text-xs">
-                  <div className="flex items-start gap-3 p-3 rounded-md bg-[#0d1117] border border-[#21262d]">
-                    <div className="w-5 h-5 rounded-full bg-sky-500/20 text-sky-400 font-mono flex items-center justify-center font-bold shrink-0">
-                      1
-                    </div>
-                    <div>
-                      <p className="font-semibold text-zinc-200">Share your photo publicly</p>
-                      <p className="text-zinc-400 mt-1">
-                        In Google Drive, right-click any photo → <strong className="text-zinc-200">Share</strong> → Set General Access to <span className="text-emerald-400">&quot;Anyone with the link can view&quot;</span>.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3 p-3 rounded-md bg-[#0d1117] border border-[#21262d]">
-                    <div className="w-5 h-5 rounded-full bg-sky-500/20 text-sky-400 font-mono flex items-center justify-center font-bold shrink-0">
-                      2
-                    </div>
-                    <div>
-                      <p className="font-semibold text-zinc-200">Copy the share link</p>
-                      <p className="text-zinc-400 mt-1">
-                        Copy the link (e.g. <code>https://drive.google.com/file/d/1A2B3C.../view</code>).
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3 p-3 rounded-md bg-[#0d1117] border border-[#21262d]">
-                    <div className="w-5 h-5 rounded-full bg-sky-500/20 text-sky-400 font-mono flex items-center justify-center font-bold shrink-0">
-                      3
-                    </div>
-                    <div>
-                      <p className="font-semibold text-zinc-200">Paste into <code>src/data/memoriesData.ts</code></p>
-                      <p className="text-zinc-400 mt-1">
-                        Add an item to the <code>MEMORIES_DATA</code> array.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Live Interactive Link Tester */}
-                <div className="p-4 rounded-md bg-[#0e1117] border border-[#30363d] space-y-3">
-                  <p className="text-xs font-mono font-semibold text-sky-400 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Test Individual Google Drive Link:</span>
-                  </p>
-                  
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Paste drive.google.com link here..."
-                      value={testLink}
-                      onChange={(e) => setTestLink(e.target.value)}
-                      className="flex-1 px-3 py-1.5 text-xs font-mono bg-[#161b22] border border-[#21262d] rounded text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-sky-500"
-                    />
-                    <button
-                      onClick={handleTestDriveLink}
-                      className="px-3 py-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-mono font-semibold rounded shrink-0 transition-colors"
-                    >
-                      Test Link
-                    </button>
-                  </div>
-
-                  {testResult && (
-                    <div className="p-2.5 rounded bg-[#161b22] border border-emerald-500/30 text-xs font-mono space-y-2 animate-fade-in">
-                      <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Resolved Link:</span>
-                      </div>
-                      <p className="text-zinc-400 truncate text-[11px]">{testResult}</p>
-                      <div className="w-full h-32 bg-black/50 rounded overflow-hidden flex items-center justify-center border border-zinc-700">
-                        <img 
-                          src={testResult} 
-                          alt="Preview" 
-                          className="max-h-full max-w-full object-contain"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center justify-between pt-2 border-t border-[#21262d]">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowChangePassword(!showChangePassword)}
-                  className="text-xs font-mono text-zinc-400 hover:text-sky-400 flex items-center gap-1 transition-colors"
-                >
-                  <Key className="w-3 h-3" />
-                  <span>{showChangePassword ? 'Hide Password Settings' : 'Change Admin Password'}</span>
-                </button>
+              {/* Title Input */}
+              <div className="space-y-1">
+                <label className="text-zinc-300 block">
+                  Title <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Pour Over at Himalayan Java / Late Night Dumplings"
+                  value={formTitle}
+                  onChange={(e) => setFormTitle(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0d1117] border border-[#30363d] rounded text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-sky-500"
+                />
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleAdminLogout}
-                  className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-mono rounded transition-colors flex items-center gap-1"
-                >
-                  <Lock className="w-3 h-3" />
-                  <span>Lock Admin</span>
-                </button>
-                <button
-                  onClick={() => setShowDriveHelper(false)}
-                  className="px-4 py-1.5 bg-[#21262d] hover:bg-[#30363d] text-zinc-200 text-xs font-mono rounded transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-
-            {showChangePassword && (
-              <form onSubmit={handleChangePassword} className="p-3 bg-[#0d1117] border border-[#21262d] rounded-md space-y-2 text-xs font-mono animate-fade-in">
-                <div className="flex items-center justify-between text-zinc-300">
-                  <span>Set New Admin Password:</span>
-                </div>
-                <div className="flex gap-2">
-                  <input
-                    type="password"
-                    placeholder="New password..."
-                    value={newPasswordInput}
-                    onChange={(e) => setNewPasswordInput(e.target.value)}
-                    className="flex-1 px-3 py-1.5 bg-[#161b22] border border-[#30363d] rounded text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-sky-500 text-xs"
-                  />
-                  <button
-                    type="submit"
-                    className="px-3 py-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold rounded text-xs transition-colors"
+              {/* Media Type & Category Row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-zinc-300 block">Media Type</label>
+                  <select
+                    value={formMediaType}
+                    onChange={(e) => {
+                      const val = e.target.value as 'image' | 'video';
+                      setFormMediaType(val);
+                      if (formDriveUrl) {
+                        setPreviewResolvedUrl(
+                          val === 'video' 
+                            ? resolveDriveVideoPreviewUrl(formDriveUrl) 
+                            : resolveDriveImageUrl(formDriveUrl)
+                        );
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-[#0d1117] border border-[#30363d] rounded text-zinc-100 focus:outline-none focus:border-sky-500"
                   >
-                    Save
-                  </button>
+                    <option value="image">Photo (JPG, PNG, WebP)</option>
+                    <option value="video">Video (MP4, Drive Video)</option>
+                  </select>
                 </div>
-                {adminSuccessMsg && (
-                  <p className="text-emerald-400 text-[11px]">{adminSuccessMsg}</p>
-                )}
-              </form>
-            )}
+
+                <div className="space-y-1">
+                  <label className="text-zinc-300 block">Category</label>
+                  <select
+                    value={formCategory}
+                    onChange={(e) => setFormCategory(e.target.value as MemoryCategory)}
+                    className="w-full px-3 py-2 bg-[#0d1117] border border-[#30363d] rounded text-zinc-100 focus:outline-none focus:border-sky-500"
+                  >
+                    <option value="Bites & Brew">Bites & Brew</option>
+                    <option value="Hackathons">Hackathons</option>
+                    <option value="Campus Life">Campus Life</option>
+                    <option value="Meetups">Meetups</option>
+                    <option value="Travel">Travel</option>
+                    <option value="College">College</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Google Drive Link or Raw URL */}
+              <div className="space-y-1">
+                <label className="text-zinc-300 block">
+                  Google Drive Share Link or ID <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="https://drive.google.com/file/d/1A2B3C.../view?usp=sharing"
+                  value={formDriveUrl}
+                  onChange={(e) => handleDriveUrlChange(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0d1117] border border-[#30363d] rounded text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-sky-500"
+                />
+                <p className="text-[11px] text-zinc-500">
+                  Tip: Right-click file in Drive &gt; Share &gt; Anyone with the link &gt; Copy link.
+                </p>
+              </div>
+
+              {/* Live Preview Box */}
+              {previewResolvedUrl && (
+                <div className="p-2.5 rounded bg-[#0d1117] border border-sky-500/20 space-y-2">
+                  <span className="text-sky-400 text-[11px] flex items-center gap-1 font-semibold">
+                    <Check className="w-3.5 h-3.5" /> Media Resolved:
+                  </span>
+                  <div className="w-full h-36 bg-black/60 rounded overflow-hidden flex items-center justify-center border border-zinc-800">
+                    {formMediaType === 'video' ? (
+                      <iframe
+                        src={previewResolvedUrl}
+                        className="w-full h-full border-0 pointer-events-none"
+                        title="Video Preview"
+                      />
+                    ) : (
+                      <img
+                        src={previewResolvedUrl}
+                        alt="Preview"
+                        className="max-h-full max-w-full object-contain"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src =
+                            'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=400&q=80';
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Date & Location Row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-zinc-300 block">Date (Badge)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. SEP 2024 / RECENT"
+                    value={formDate}
+                    onChange={(e) => setFormDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0d1117] border border-[#30363d] rounded text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-zinc-300 block">Location</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Patan, Nepal"
+                    value={formLocation}
+                    onChange={(e) => setFormLocation(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0d1117] border border-[#30363d] rounded text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+              </div>
+
+              {/* Tags Input */}
+              <div className="space-y-1">
+                <label className="text-zinc-300 block">
+                  Tags (Separated by commas)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Coffee, Cafe, PourOver, Weekend"
+                  value={formTags}
+                  onChange={(e) => setFormTags(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0d1117] border border-[#30363d] rounded text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-sky-500"
+                />
+                <p className="text-[11px] text-zinc-500">
+                  Assign any tags you want — regardless of what the original file is named!
+                </p>
+              </div>
+
+              {/* Caption */}
+              <div className="space-y-1">
+                <label className="text-zinc-300 block">Caption / Story</label>
+                <textarea
+                  rows={2}
+                  placeholder="Add a short memory note or review..."
+                  value={formCaption}
+                  onChange={(e) => setFormCaption(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0d1117] border border-[#30363d] rounded text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-sky-500"
+                />
+              </div>
+
+              {/* Form Action Buttons */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#21262d]">
+                <button
+                  type="button"
+                  onClick={() => setShowItemModal(false)}
+                  className="px-4 py-2 rounded bg-[#21262d] hover:bg-[#30363d] text-zinc-300 text-xs transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold text-xs transition-colors flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>{editingItem ? 'Save Changes' : 'Add to Portfolio'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -921,16 +996,12 @@ export const MemoriesPage: React.FC = () => {
                 <ShieldCheck className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-serif font-bold text-base text-zinc-100">
-                  Admin Verification
-                </h3>
-                <p className="text-[11px] font-mono text-zinc-400">
-                  Manage Google Drive photo sync
-                </p>
+                <h3 className="text-base font-semibold text-zinc-100 font-mono">Admin Access</h3>
+                <p className="text-xs text-zinc-400">Manage photos, videos & custom tags</p>
               </div>
             </div>
 
-            <form onSubmit={handleAdminLogin} className="space-y-3 pt-2">
+            <form onSubmit={handleAdminLogin} className="space-y-4 pt-1">
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
