@@ -22,7 +22,7 @@ import {
   Eye,
   EyeOff
 } from 'lucide-react';
-import { MemoryItem } from '../types/portfolio';
+import { MemoryItem, MemoryCategory } from '../types/portfolio';
 import { 
   MEMORIES_DATA, 
   GOOGLE_DRIVE_FOLDER_URL, 
@@ -31,7 +31,7 @@ import {
   resolveDriveImageUrl 
 } from '../data/memoriesData';
 
-type CategoryFilter = 'All' | 'College' | 'Hackathons' | 'Campus Life' | 'Meetups' | 'Travel';
+type CategoryFilter = 'All' | MemoryCategory;
 
 export const MemoriesPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<CategoryFilter>('All');
@@ -104,7 +104,7 @@ export const MemoriesPage: React.FC = () => {
   const [testLink, setTestLink] = useState('');
   const [testResult, setTestResult] = useState<string | null>(null);
 
-  const categories: CategoryFilter[] = ['All', 'College', 'Hackathons', 'Campus Life', 'Meetups', 'Travel'];
+  const categories: CategoryFilter[] = ['All', 'Bites & Brew', 'Hackathons', 'Campus Life', 'Meetups', 'Travel'];
 
   // Fetch live memories from Apps Script
   const fetchLiveMemories = async (endpointUrl: string) => {
@@ -120,10 +120,14 @@ export const MemoriesPage: React.FC = () => {
       const smartCategorize = (items: MemoryItem[]): MemoryItem[] => {
         return items.map((item) => {
           const name = item.title.toLowerCase();
-          let category: MemoryItem['category'] = item.category || 'College';
+          let category: MemoryItem['category'] = item.category || 'Bites & Brew';
           const autoTags = new Set<string>(item.tags || ['DriveSync']);
 
-          if (name.includes('hack') || name.includes('code') || name.includes('dev') || name.includes('win') || name.includes('demo')) {
+          if (name.includes('coffee') || name.includes('brew') || name.includes('cafe') || name.includes('food') || name.includes('momo') || name.includes('pizza') || name.includes('laphing') || name.includes('tea') || name.includes('burger') || name.includes('latte') || name.includes('snack') || name.includes('eat') || name.includes('restaurant')) {
+            category = 'Bites & Brew';
+            autoTags.add('Food');
+            autoTags.add('BitesAndBrew');
+          } else if (name.includes('hack') || name.includes('code') || name.includes('dev') || name.includes('win') || name.includes('demo')) {
             category = 'Hackathons';
             autoTags.add('Hackathon');
           } else if (name.includes('travel') || name.includes('trip') || name.includes('tour') || name.includes('hike') || name.includes('trek') || name.includes('pokhara') || name.includes('mountain') || name.includes('vacation')) {
@@ -135,9 +139,6 @@ export const MemoriesPage: React.FC = () => {
           } else if (name.includes('campus') || name.includes('canteen') || name.includes('hostel') || name.includes('friend') || name.includes('bunk') || name.includes('fun')) {
             category = 'Campus Life';
             autoTags.add('CampusLife');
-          } else if (name.includes('college') || name.includes('exam') || name.includes('lab') || name.includes('defense') || name.includes('grad') || name.includes('class') || name.includes('project')) {
-            category = 'College';
-            autoTags.add('College');
           }
 
           return {
@@ -291,10 +292,10 @@ export const MemoriesPage: React.FC = () => {
               className="text-3xl sm:text-4xl font-serif font-bold text-zinc-100 tracking-tight select-none cursor-default"
               title="Double-click to unlock admin"
             >
-              Life Beyond the Terminal
+              Bites, Brews & Beyond
             </h1>
             <p className="text-zinc-400 text-sm sm:text-base max-w-2xl mt-2 leading-relaxed">
-              A curated visual archive of college milestones, hackathon all-nighters, Kathmandu tech meetups, and travel memories.
+              A curated visual log of favorite cafes, street eats, coffee spots, hackathon sprints, and travel adventures.
             </p>
           </div>
 
@@ -415,12 +416,21 @@ export const MemoriesPage: React.FC = () => {
       {/* Photo Gallery Grid */}
       <section>
         {filteredMemories.length === 0 ? (
-          <div className="py-20 text-center space-y-3 bg-[#161b22]/40 rounded-lg border border-[#21262d]">
-            <Camera className="w-8 h-8 text-zinc-600 mx-auto" />
-            <p className="text-zinc-300 font-medium">No memories found</p>
-            <p className="text-xs font-mono text-zinc-500">
-              Try adjusting your category filter or search terms.
+          <div className="py-20 text-center space-y-3 bg-[#161b22]/40 rounded-lg border border-[#21262d] px-6">
+            <Camera className="w-10 h-10 text-sky-400/60 mx-auto" />
+            <p className="text-zinc-200 font-serif text-lg font-semibold">No photos in Bites & Brew yet</p>
+            <p className="text-xs font-mono text-zinc-400 max-w-md mx-auto leading-relaxed">
+              Connect your Google Drive folder or drop your photo links to display your favorite food spots, coffee shops, and travel moments here.
             </p>
+            {isAdmin && (
+              <button
+                onClick={() => setShowDriveHelper(true)}
+                className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-md bg-sky-500 hover:bg-sky-400 text-slate-950 font-mono text-xs font-semibold transition-all"
+              >
+                <FolderPlus className="w-4 h-4" />
+                <span>Connect Google Drive Folder</span>
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -677,7 +687,7 @@ export const MemoriesPage: React.FC = () => {
                     <div>
                       <p className="font-semibold text-zinc-200">Create a Google Drive Folder & make it public</p>
                       <p className="text-zinc-400 mt-0.5">
-                        Create a folder (e.g. <code>College Memories</code>). Right click → <strong className="text-zinc-200">Share</strong> → Set General Access to <span className="text-emerald-400">&quot;Anyone with the link can view&quot;</span>. Copy the folder URL.
+                        Create a folder (e.g. <code>Bites and Brew</code>). Right click → <strong className="text-zinc-200">Share</strong> → Set General Access to <span className="text-emerald-400">&quot;Anyone with the link can view&quot;</span>. Copy the folder URL.
                       </p>
                     </div>
                   </div>
@@ -911,12 +921,16 @@ export const MemoriesPage: React.FC = () => {
                 <ShieldCheck className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base font-semibold text-zinc-100 font-mono">Admin Access</h3>
-                <p className="text-xs text-zinc-400">Enter password to unlock Drive setup</p>
+                <h3 className="font-serif font-bold text-base text-zinc-100">
+                  Admin Verification
+                </h3>
+                <p className="text-[11px] font-mono text-zinc-400">
+                  Manage Google Drive photo sync
+                </p>
               </div>
             </div>
 
-            <form onSubmit={handleAdminLogin} className="space-y-4 pt-1">
+            <form onSubmit={handleAdminLogin} className="space-y-3 pt-2">
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}

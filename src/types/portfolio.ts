@@ -1,12 +1,14 @@
 export type PageId = 'about' | 'projects' | 'skills' | 'memories' | 'bug-smasher' | 'api-explorer' | 'contact';
 
+export type MemoryCategory = 'Bites & Brew' | 'College' | 'Hackathons' | 'Campus Life' | 'Meetups' | 'Travel';
+
 export interface MemoryItem {
   id: string;
   title: string;
   caption: string;
   date: string;
   location?: string;
-  category: 'College' | 'Hackathons' | 'Campus Life' | 'Meetups' | 'Travel';
+  category: MemoryCategory;
   driveIdOrUrl: string;
   aspectRatio?: 'tall' | 'wide' | 'square';
   tags?: string[];

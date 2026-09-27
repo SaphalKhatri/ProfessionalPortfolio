@@ -37,6 +37,8 @@ export const TerminalDrawer: React.FC<TerminalDrawerProps> = ({ isOpen, onClose,
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const allMemoriesCount = MEMORIES_DATA.length;
+
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => {
@@ -69,7 +71,7 @@ export const TerminalDrawer: React.FC<TerminalDrawerProps> = ({ isOpen, onClose,
             <p><span className="text-emerald-400 w-28 inline-block">bio</span> Print engineer summary & background</p>
             <p><span className="text-emerald-400 w-28 inline-block">skills</span> List core backend & distributed stack</p>
             <p><span className="text-emerald-400 w-28 inline-block">projects</span> List top production systems</p>
-            <p><span className="text-emerald-400 w-28 inline-block">memories</span> Photo dump & Google Drive college archive</p>
+            <p><span className="text-emerald-400 w-28 inline-block">bites</span> Bites & Brew photo archive & Google Drive sync</p>
             <p><span className="text-emerald-400 w-28 inline-block">curl &lt;url&gt;</span> Simulated HTTP curl client (e.g. curl /health)</p>
             <p><span className="text-emerald-400 w-28 inline-block">python</span> Interactive Python command runner</p>
             <p><span className="text-emerald-400 w-28 inline-block">contact</span> Output email and direct coordinates</p>
@@ -116,11 +118,12 @@ export const TerminalDrawer: React.FC<TerminalDrawerProps> = ({ isOpen, onClose,
         break;
 
       case 'memories':
+      case 'bites':
       case 'photos':
         output = (
           <div className="space-y-2 text-zinc-300 text-xs font-mono">
             <div className="flex items-center justify-between text-sky-400 font-semibold">
-              <span>{MEMORIES_DATA.length} visual moments loaded from Google Drive archive</span>
+              <span>{allMemoriesCount ? `${allMemoriesCount} photos loaded in Bites & Brew` : 'Google Drive photo sync connected'}</span>
               {onNavigate && (
                 <button
                   onClick={() => {
@@ -134,16 +137,33 @@ export const TerminalDrawer: React.FC<TerminalDrawerProps> = ({ isOpen, onClose,
                 </button>
               )}
             </div>
-            <div className="space-y-1 text-zinc-400">
-              {MEMORIES_DATA.slice(0, 4).map((m) => (
-                <div key={m.id} className="flex items-center gap-2">
-                  <span className="text-amber-400">[{m.date}]</span>
-                  <span className="text-zinc-200">{m.title}</span>
-                  <span className="text-zinc-500">({m.category})</span>
-                </div>
-              ))}
-              <p className="text-zinc-500 pt-1">+ {MEMORIES_DATA.length - 4} more college, hackathon & travel photos in gallery.</p>
-            </div>
+            <p className="text-zinc-400">
+              Personal visual log of coffee spots, cafe brews, street eats, hackathons, and travels.
+            </p>
+          </div>
+        );
+        break;
+
+      case 'admin':
+      case 'sudo':
+        output = (
+          <div className="space-y-1.5 text-xs font-mono text-zinc-300">
+            <p className="text-amber-400 font-semibold">[Admin Mode]</p>
+            <p className="text-zinc-400">Direct shortcut to unlock the Google Drive album settings.</p>
+            {onNavigate && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onNavigate('memories');
+                  setTimeout(() => {
+                    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true, shiftKey: true }));
+                  }, 200);
+                }}
+                className="mt-1 px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
+              >
+                <span>Unlock Memories Admin</span>
+              </button>
+            )}
           </div>
         );
         break;

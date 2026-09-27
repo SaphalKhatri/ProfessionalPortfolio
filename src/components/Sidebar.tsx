@@ -16,6 +16,7 @@ import {
   User,
   Gamepad2,
   Zap,
+  Coffee,
   Camera
 } from 'lucide-react';
 
@@ -42,7 +43,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'about', label: 'about', icon: <User className="w-3.5 h-3.5" /> },
     { id: 'projects', label: 'projects', icon: <Layers className="w-3.5 h-3.5" />, badge: '4' },
     { id: 'skills', label: 'skills', icon: <Code2 className="w-3.5 h-3.5" /> },
-    { id: 'memories', label: 'memories & dump', icon: <Camera className="w-3.5 h-3.5" />, badge: 'new' },
+    { id: 'memories', label: 'bites & brew', icon: <Coffee className="w-3.5 h-3.5" />, badge: 'new' },
     { id: 'bug-smasher', label: 'bug smasher', icon: <Gamepad2 className="w-3.5 h-3.5" />, badge: 'arcade' },
     { id: 'api-explorer', label: 'api playground', icon: <Zap className="w-3.5 h-3.5" /> },
     { id: 'contact', label: 'contact', icon: <Send className="w-3.5 h-3.5" /> },
@@ -60,8 +61,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 alt={PERSONAL_INFO.name}
                 className="w-full h-full object-cover object-top"
                 onError={(e) => {
-                  // Fallback avatar if local image not found
-                  (e.target as HTMLElement).style.display = 'none';
+                  const target = e.currentTarget;
+                  if (!target.src.endsWith('/saphal_profile.png')) {
+                    target.src = '/saphal_profile.png';
+                  }
                 }}
               />
             </div>
