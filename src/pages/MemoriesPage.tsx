@@ -14,7 +14,13 @@ import {
   RefreshCw,
   Copy,
   FolderGit2,
-  AlertCircle
+  AlertCircle,
+  Key,
+  Lock,
+  Unlock,
+  ShieldCheck,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { MemoryItem } from '../types/portfolio';
 import { 
@@ -44,6 +50,56 @@ export const MemoriesPage: React.FC = () => {
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
 
+  // Admin State
+  const [isAdmin, setIsAdmin] = useState<boolean>(() => {
+    return sessionStorage.getItem('portfolio_memories_admin') === 'true';
+  });
+  const [showAdminAuthModal, setShowAdminAuthModal] = useState(false);
+  const [adminPasswordInput, setAdminPasswordInput] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [adminSuccessMsg, setAdminSuccessMsg] = useState<string | null>(null);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+
+  const getStoredAdminPassword = () => {
+    return localStorage.getItem('portfolio_memories_admin_password') || 'admin';
+  };
+
+  const handleAdminLogin = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const stored = getStoredAdminPassword();
+    if (adminPasswordInput.trim() === stored) {
+      setIsAdmin(true);
+      sessionStorage.setItem('portfolio_memories_admin', 'true');
+      setShowAdminAuthModal(false);
+      setAdminPasswordInput('');
+      setAuthError(null);
+    } else {
+      setAuthError('Incorrect admin password. Please try again.');
+    }
+  };
+
+  const handleAdminLogout = () => {
+    setIsAdmin(false);
+    sessionStorage.removeItem('portfolio_memories_admin');
+    setShowDriveHelper(false);
+    setShowChangePassword(false);
+  };
+
+  const handleChangePassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPasswordInput.trim()) {
+      setAuthError('Password cannot be empty.');
+      return;
+    }
+    localStorage.setItem('portfolio_memories_admin_password', newPasswordInput.trim());
+    setNewPasswordInput('');
+    setShowChangePassword(false);
+    setAdminSuccessMsg('Admin password updated successfully!');
+    setTimeout(() => setAdminSuccessMsg(null), 3000);
+  };
+
   // Link tester state
   const [testLink, setTestLink] = useState('');
   const [testResult, setTestResult] = useState<string | null>(null);
@@ -61,11 +117,42 @@ export const MemoriesPage: React.FC = () => {
       if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to reach Drive script`);
       const data = await res.json();
 
+      const smartCategorize = (items: MemoryItem[]): MemoryItem[] => {
+        return items.map((item) => {
+          const name = item.title.toLowerCase();
+          let category: MemoryItem['category'] = item.category || 'College';
+          const autoTags = new Set<string>(item.tags || ['DriveSync']);
+
+          if (name.includes('hack') || name.includes('code') || name.includes('dev') || name.includes('win') || name.includes('demo')) {
+            category = 'Hackathons';
+            autoTags.add('Hackathon');
+          } else if (name.includes('travel') || name.includes('trip') || name.includes('tour') || name.includes('hike') || name.includes('trek') || name.includes('pokhara') || name.includes('mountain') || name.includes('vacation')) {
+            category = 'Travel';
+            autoTags.add('Travel');
+          } else if (name.includes('meetup') || name.includes('talk') || name.includes('conf') || name.includes('community') || name.includes('python') || name.includes('speaker')) {
+            category = 'Meetups';
+            autoTags.add('Community');
+          } else if (name.includes('campus') || name.includes('canteen') || name.includes('hostel') || name.includes('friend') || name.includes('bunk') || name.includes('fun')) {
+            category = 'Campus Life';
+            autoTags.add('CampusLife');
+          } else if (name.includes('college') || name.includes('exam') || name.includes('lab') || name.includes('defense') || name.includes('grad') || name.includes('class') || name.includes('project')) {
+            category = 'College';
+            autoTags.add('College');
+          }
+
+          return {
+            ...item,
+            category,
+            tags: Array.from(autoTags)
+          };
+        });
+      };
+
       if (data && Array.isArray(data.data)) {
-        setSyncedMemories(data.data);
+        setSyncedMemories(smartCategorize(data.data));
         setLastSyncedAt(new Date());
       } else if (Array.isArray(data)) {
-        setSyncedMemories(data);
+        setSyncedMemories(smartCategorize(data));
         setLastSyncedAt(new Date());
       } else if (data.status === 'error') {
         throw new Error(data.message || 'Google Drive script error');
@@ -101,9 +188,18 @@ export const MemoriesPage: React.FC = () => {
     return matchesCategory && matchesSearch;
   });
 
-  // Handle keyboard navigation for Lightbox
+  // Global keyboard shortcuts (Lightbox navigation & Ctrl+Shift+A Admin trigger)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Secret Admin Hotkey: Ctrl + Shift + A or Cmd + Shift + A
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'a' || e.key === 'A')) {
+        e.preventDefault();
+        setShowAdminAuthModal(true);
+        setAuthError(null);
+        setAdminPasswordInput('');
+        return;
+      }
+
       if (lightboxIndex === null) return;
       if (e.key === 'Escape') setLightboxIndex(null);
       if (e.key === 'ArrowRight') {
@@ -145,28 +241,56 @@ export const MemoriesPage: React.FC = () => {
       {/* Header Section */}
       <section className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/10 border border-sky-500/20 text-xs font-mono text-sky-400">
+          {/* Clickable Badge trigger for Admin */}
+          <button
+            type="button"
+            onClick={() => {
+              setShowAdminAuthModal(true);
+              setAuthError(null);
+              setAdminPasswordInput('');
+            }}
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/10 border border-sky-500/20 text-xs font-mono text-sky-400 hover:bg-sky-500/20 hover:border-sky-500/30 transition-all cursor-pointer"
+            title="Memories Archive (Click to manage)"
+          >
             <Camera className="w-3.5 h-3.5" />
             <span>Memories & Photo Dump</span>
-          </div>
+          </button>
 
-          {syncUrl ? (
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-mono text-emerald-400">
-              <span className={`w-1.5 h-1.5 rounded-full bg-emerald-400 ${isSyncing ? 'animate-ping' : ''}`} />
-              <span>Drive Auto-Sync Active</span>
-              {syncedMemories.length > 0 && <span>({syncedMemories.length} live)</span>}
+          {/* Admin Badges */}
+          {isAdmin && (
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-xs font-mono text-amber-400">
+              <Unlock className="w-3 h-3" />
+              <span>Admin Mode</span>
             </div>
-          ) : (
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-800/80 border border-zinc-700/50 text-xs font-mono text-zinc-400">
-              <FolderGit2 className="w-3 h-3 text-amber-400" />
-              <span>Manual / Pre-configured</span>
-            </div>
+          )}
+
+          {isAdmin && (
+            syncUrl ? (
+              <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-mono text-emerald-400">
+                <span className={`w-1.5 h-1.5 rounded-full bg-emerald-400 ${isSyncing ? 'animate-ping' : ''}`} />
+                <span>Drive Auto-Sync Active</span>
+                {syncedMemories.length > 0 && <span>({syncedMemories.length} live)</span>}
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-800/80 border border-zinc-700/50 text-xs font-mono text-zinc-400">
+                <FolderGit2 className="w-3 h-3 text-amber-400" />
+                <span>Manual / Pre-configured</span>
+              </div>
+            )
           )}
         </div>
 
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-serif font-bold text-zinc-100 tracking-tight">
+            <h1 
+              onDoubleClick={() => {
+                setShowAdminAuthModal(true);
+                setAuthError(null);
+                setAdminPasswordInput('');
+              }}
+              className="text-3xl sm:text-4xl font-serif font-bold text-zinc-100 tracking-tight select-none cursor-default"
+              title="Double-click to unlock admin"
+            >
               Life Beyond the Terminal
             </h1>
             <p className="text-zinc-400 text-sm sm:text-base max-w-2xl mt-2 leading-relaxed">
@@ -176,41 +300,54 @@ export const MemoriesPage: React.FC = () => {
 
           {/* Action CTAs */}
           <div className="flex items-center gap-2.5 shrink-0">
-            {syncUrl && (
-              <button
-                onClick={() => fetchLiveMemories(syncUrl)}
-                disabled={isSyncing}
-                className="px-3 py-2 rounded-md bg-[#161b22] hover:bg-[#21262d] text-zinc-300 hover:text-white border border-[#30363d] text-xs font-mono flex items-center gap-1.5 transition-all shadow-sm"
-                title="Refresh photos from Drive"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isSyncing ? 'animate-spin' : ''}`} />
-                <span>{isSyncing ? 'Syncing...' : 'Sync Now'}</span>
-              </button>
-            )}
+            {isAdmin ? (
+              <>
+                {syncUrl && (
+                  <button
+                    onClick={() => fetchLiveMemories(syncUrl)}
+                    disabled={isSyncing}
+                    className="px-3 py-2 rounded-md bg-[#161b22] hover:bg-[#21262d] text-zinc-300 hover:text-white border border-[#30363d] text-xs font-mono flex items-center gap-1.5 transition-all shadow-sm"
+                    title="Refresh photos from Drive"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isSyncing ? 'animate-spin' : ''}`} />
+                    <span>{isSyncing ? 'Syncing...' : 'Sync Now'}</span>
+                  </button>
+                )}
 
-            <button
-              onClick={() => setShowDriveHelper(true)}
-              className="px-3.5 py-2 rounded-md bg-[#161b22] hover:bg-[#21262d] text-zinc-300 hover:text-white border border-[#30363d] text-xs font-mono flex items-center gap-2 transition-all shadow-sm"
-              title="How to connect your Google Drive folder"
-            >
-              <FolderPlus className="w-3.5 h-3.5 text-sky-400" />
-              <span>Drive Setup</span>
-            </button>
+                <button
+                  onClick={() => setShowDriveHelper(true)}
+                  className="px-3.5 py-2 rounded-md bg-[#161b22] hover:bg-[#21262d] text-zinc-300 hover:text-white border border-[#30363d] text-xs font-mono flex items-center gap-2 transition-all shadow-sm"
+                  title="How to connect your Google Drive folder"
+                >
+                  <FolderPlus className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Drive Setup</span>
+                </button>
 
-            <a
-              href={GOOGLE_DRIVE_FOLDER_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-3.5 py-2 rounded-md bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-mono font-semibold flex items-center gap-1.5 transition-all shadow-md hover:shadow-sky-500/20"
-            >
-              <span>Drive Album</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
+                <a
+                  href={GOOGLE_DRIVE_FOLDER_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3.5 py-2 rounded-md bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-mono font-semibold flex items-center gap-1.5 transition-all shadow-md hover:shadow-sky-500/20"
+                >
+                  <span>Drive Album</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+
+                {/* Lock Admin Mode Button */}
+                <button
+                  onClick={handleAdminLogout}
+                  className="p-2 rounded-md bg-[#161b22] hover:bg-rose-500/10 text-zinc-400 hover:text-rose-400 border border-[#30363d] text-xs font-mono transition-colors"
+                  title="Lock Admin Mode"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                </button>
+              </>
+            ) : null}
           </div>
         </div>
 
-        {/* Sync notification if error */}
-        {syncError && (
+        {/* Sync notification if error - only visible to admin */}
+        {isAdmin && syncError && (
           <div className="p-3 rounded-md bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-mono flex items-center justify-between">
             <div className="flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
@@ -301,6 +438,7 @@ export const MemoriesPage: React.FC = () => {
                       src={imageUrl}
                       alt={item.title}
                       loading="lazy"
+                      referrerPolicy="no-referrer"
                       className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500 brightness-95 group-hover:brightness-105"
                       onError={(e) => {
                         // Fallback to placeholder if an unshared Drive link fails
@@ -410,6 +548,7 @@ export const MemoriesPage: React.FC = () => {
               <img
                 src={resolveDriveImageUrl(currentLightboxItem.driveIdOrUrl)}
                 alt={currentLightboxItem.title}
+                referrerPolicy="no-referrer"
                 className="max-h-[75vh] w-auto object-contain mx-auto"
               />
             </div>
@@ -695,14 +834,139 @@ export const MemoriesPage: React.FC = () => {
               </div>
             )}
 
-            <div className="flex justify-end pt-2 border-t border-[#21262d]">
-              <button
-                onClick={() => setShowDriveHelper(false)}
-                className="px-4 py-1.5 bg-[#21262d] hover:bg-[#30363d] text-zinc-200 text-xs font-mono rounded transition-colors"
-              >
-                Close
-              </button>
+            <div className="flex items-center justify-between pt-2 border-t border-[#21262d]">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowChangePassword(!showChangePassword)}
+                  className="text-xs font-mono text-zinc-400 hover:text-sky-400 flex items-center gap-1 transition-colors"
+                >
+                  <Key className="w-3 h-3" />
+                  <span>{showChangePassword ? 'Hide Password Settings' : 'Change Admin Password'}</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleAdminLogout}
+                  className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-mono rounded transition-colors flex items-center gap-1"
+                >
+                  <Lock className="w-3 h-3" />
+                  <span>Lock Admin</span>
+                </button>
+                <button
+                  onClick={() => setShowDriveHelper(false)}
+                  className="px-4 py-1.5 bg-[#21262d] hover:bg-[#30363d] text-zinc-200 text-xs font-mono rounded transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
+
+            {showChangePassword && (
+              <form onSubmit={handleChangePassword} className="p-3 bg-[#0d1117] border border-[#21262d] rounded-md space-y-2 text-xs font-mono animate-fade-in">
+                <div className="flex items-center justify-between text-zinc-300">
+                  <span>Set New Admin Password:</span>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    placeholder="New password..."
+                    value={newPasswordInput}
+                    onChange={(e) => setNewPasswordInput(e.target.value)}
+                    className="flex-1 px-3 py-1.5 bg-[#161b22] border border-[#30363d] rounded text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-sky-500 text-xs"
+                  />
+                  <button
+                    type="submit"
+                    className="px-3 py-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold rounded text-xs transition-colors"
+                  >
+                    Save
+                  </button>
+                </div>
+                {adminSuccessMsg && (
+                  <p className="text-emerald-400 text-[11px]">{adminSuccessMsg}</p>
+                )}
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Admin Authentication Modal */}
+      {showAdminAuthModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-[#0e1117] border border-[#30363d] rounded-xl max-w-sm w-full p-6 shadow-2xl relative space-y-4">
+            <button
+              onClick={() => {
+                setShowAdminAuthModal(false);
+                setAuthError(null);
+                setAdminPasswordInput('');
+              }}
+              className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-200 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-zinc-100 font-mono">Admin Access</h3>
+                <p className="text-xs text-zinc-400">Enter password to unlock Drive setup</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleAdminLogin} className="space-y-4 pt-1">
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Enter admin password..."
+                  value={adminPasswordInput}
+                  onChange={(e) => {
+                    setAdminPasswordInput(e.target.value);
+                    if (authError) setAuthError(null);
+                  }}
+                  autoFocus
+                  className="w-full px-3.5 py-2.5 pr-10 text-xs font-mono bg-[#161b22] border border-[#30363d] rounded-lg text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500/30 transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+
+              {authError && (
+                <div className="flex items-center gap-1.5 text-xs text-rose-400 font-mono">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{authError}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between text-[11px] text-zinc-500 font-mono">
+                <span>Default: <code className="text-zinc-400">admin</code></span>
+                <span className="text-zinc-500">Only visible to you</span>
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowAdminAuthModal(false)}
+                  className="flex-1 py-2 rounded-lg bg-[#21262d] hover:bg-[#30363d] text-zinc-300 text-xs font-mono transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-mono font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-md shadow-sky-500/20"
+                >
+                  <Unlock className="w-3.5 h-3.5" />
+                  <span>Unlock</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
