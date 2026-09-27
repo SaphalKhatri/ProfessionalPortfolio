@@ -8,35 +8,41 @@ import { MemoryItem } from '../types/portfolio';
  * 3. Direct IDs: "1vABC123xyz..."
  * 4. Regular image URLs: Unsplash, Cloudinary, local paths, etc.
  */
+/**
+ * Resolves a Google Drive link or ID to a reliable, universally viewable direct thumbnail image URL.
+ * Works on any phone, browser, incognito session, or device without requiring a Google login.
+ */
 export function resolveDriveImageUrl(input: string): string {
   if (!input) return '';
-
   const trimmed = input.trim();
 
-  // If already a direct lh3 or thumbnail URL
+  // If already a direct thumbnail or Google User Content link
   if (trimmed.includes('lh3.googleusercontent.com') || trimmed.includes('drive.google.com/thumbnail')) {
     return trimmed;
   }
 
-  // Check for drive.google.com/file/d/<ID>
-  const fileDMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-  if (fileDMatch && fileDMatch[1]) {
-    return `https://lh3.googleusercontent.com/d/${fileDMatch[1]}`;
+  const fileId = extractDriveFileId(trimmed);
+  if (fileId) {
+    // drive.google.com/thumbnail?id=...&sz=w1600 is the most reliable endpoint across mobile devices
+    // as it does not enforce Google workspace or cookie requirements on public files.
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`;
   }
 
-  // Check for id=<ID> parameter
-  const idParamMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-  if (idParamMatch && idParamMatch[1]) {
-    return `https://lh3.googleusercontent.com/d/${idParamMatch[1]}`;
-  }
-
-  // If it's a bare Drive file ID (alphanumeric with hyphens/underscores, usually ~25-45 chars, no slashes)
-  if (!trimmed.includes('/') && trimmed.length >= 20) {
-    return `https://lh3.googleusercontent.com/d/${trimmed}`;
-  }
-
-  // Standard web URL (Unsplash, local asset, etc.)
+  // Standard web URL (Unsplash, Cloudinary, local asset, etc.)
   return trimmed;
+}
+
+/**
+ * Returns alternative candidate URLs for a Drive image to use as fallback in onError.
+ */
+export function getDriveImageFallbackUrls(input: string): string[] {
+  const fileId = extractDriveFileId(input);
+  if (!fileId) return [];
+  return [
+    `https://lh3.googleusercontent.com/d/${fileId}`,
+    `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`,
+    `https://drive.google.com/uc?export=view&id=${fileId}`
+  ];
 }
 
 /**
@@ -95,20 +101,30 @@ export const GOOGLE_APPS_SCRIPT_SNIPPET = `function doGet(e) {
       var file = files.next();
       var mime = file.getMimeType();
       
-      // Filter for images only (jpg, png, webp, heic, etc.)
-      if (mime.indexOf("image/") === 0) {
+      // Filter for images and videos
+      var isImage = mime.indexOf("image/") === 0;
+      var isVideo = mime.indexOf("video/") === 0;
+
+      if (isImage || isVideo) {
         var cleanTitle = file.getName().replace(/\\.[^/.]+$/, "").replace(/[-_]/g, " ");
+        var desc = file.getDescription() || "";
         var created = file.getDateCreated();
         var dateStr = Utilities.formatDate(created, "GMT", "MMM yyyy").toUpperCase();
         
+        // Use universally viewable thumbnail link that works on all mobile & desktop browsers
+        var mediaUrl = isVideo 
+          ? ("https://drive.google.com/file/d/" + file.getId() + "/preview")
+          : ("https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w1600");
+
         results.push({
           id: file.getId(),
           title: cleanTitle,
-          caption: "Uploaded to Google Drive: " + file.getName(),
+          caption: desc || ("Captured in Google Drive: " + file.getName()),
           date: dateStr,
-          location: "Google Drive Folder",
+          location: "Kathmandu, Nepal",
           category: "Bites & Brew",
-          driveIdOrUrl: "https://lh3.googleusercontent.com/d/" + file.getId(),
+          mediaType: isVideo ? "video" : "image",
+          driveIdOrUrl: mediaUrl,
           driveUrl: file.getUrl(),
           tags: ["Food", "BitesAndBrew", "DriveSync"]
         });
@@ -123,6 +139,6 @@ export const GOOGLE_APPS_SCRIPT_SNIPPET = `function doGet(e) {
     errorOutput.setMimeType(ContentService.MimeType.JSON);
     return errorOutput;
   }
-}`;
+};`;
 
 export const MEMORIES_DATA: MemoryItem[] = [];
