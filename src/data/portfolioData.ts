@@ -150,68 +150,64 @@ export const PROJECTS_DATA: ProjectItem[] = [
   },
   {
     id: "async-task-engine",
-    name: "Async-Task Engine & Ingestion Pipeline",
+    name: "Redis + Fastapi",
     tagline: "High-throughput asynchronous job processor and event pipeline built with Python AsyncIO, Celery, and Redis.",
     category: "Distributed Systems & Tasks",
     description: [
-      "Designed and implemented an asynchronous distributed task engine for decoupled batch processing and streaming workloads.",
-      "Integrated Celery distributed workers with Redis broker queues, establishing priority bands and dead-letter queue (DLQ) retry mechanisms.",
-      "Constructed non-blocking AsyncIO event loops leveraging uvloop to ingest bulk webhook events without blocking worker threads.",
-      "Containerized the entire infrastructure (FastAPI app, Redis cluster, Celery workers, and Flower monitoring) using Docker Compose."
+      "Built a passwordless private notes application using FastAPI, PostgreSQL, and Redis as a practical project to learn and implement Redis in a real backend application.",
+      "Implemented Redis-based OTP management with TTL (Time To Live) to automatically expire verification codes after a defined period.",
+      "Implemented API rate limiting using Redis to restrict excessive requests within a specific time window and help protect endpoints from abuse.",
+      "Added asynchronous OTP email processing and explored how Redis can support background tasks, temporary storage, expiration, and request control in a FastAPI application."
     ],
-    techStack: ["Python 3.12", "AsyncIO", "Celery", "Redis", "Docker", "PostgreSQL", "Flower"],
+    techStack: ["Python/FastAPI", "Redis", "Pydantic", ],
     metrics: [
-      { label: "Throughput", value: "12,500 tasks/min" },
-      { label: "Queue Durability", value: "Redis AOF + DLQ" },
-      { label: "Worker Scaling", value: "Multi-process prefork" }
+      { label: "Key-Value", value: "Learned Redis key & value operations" },
+      { label: "OTP Expiration", value: "Learned TTL-based key expiration" },
+      { label: "Rate Limiting", value: "Limited requests within a time window" }
     ],
-    githubUrl: "https://github.com/SaphalKhatri",
+    githubUrl: "https://github.com/SaphalKhatri/Redis-Implemtation",
     architectureHighlights: [
-      "Dead Letter Queue (DLQ) automated retry loop with exponential jitter.",
-      "Async worker concurrency handling I/O bound database writes concurrently.",
-      "Zero-downtime task migration and idempotent task key verification."
+      "Redis-based OTP storage with TTL for automatic expiration of verification codes.",
+      "Redis rate limiting to control repeated API requests within a defined time window.",
+      "Separation of temporary Redis data from persistent PostgreSQL data for efficient backend data management."
     ],
     endpointsSample: [
       {
         method: "POST",
-        path: "/api/v1/tasks/dispatch",
-        description: "Dispatches an asynchronous job to Celery Redis workers and returns a task tracking UUID.",
+        path: "/api/auth/send-otp",
+        description: "Generates a one-time password, stores it temporarily in Redis with an expiration time, and triggers asynchronous email delivery.",
         samplePayload: {
-          job_type: "generate_analytics_report",
-          parameters: { dataset_id: "ds_8819", format: "parquet" },
-          priority: "high"
+          email: "user@example.com"
         },
         sampleResponse: {
-          task_id: "celery-9f2e-4b21-872c",
-          status: "queued",
-          queue_name: "high_priority",
-          estimated_eta_seconds: 4.2
+          message: "OTP sent successfully",
+          expires_in: 300
         }
       }
     ]
   },
   {
     id: "portfolio-admin-service",
-    name: "Portfolio Web & Admin API Service",
-    tagline: "Modern responsive portfolio frontend paired with a protected REST API for dynamic project management.",
+    name: "Ghar-Dhani",
+    tagline: "Effortless flat management, seamless rent tracking.",
     category: "Full Stack & APIs",
     description: [
-      "Engineered a full-stack personal portfolio platform featuring a responsive React + Tailwind CSS client and a secure backend service.",
-      "Built password-protected administrative endpoints allowing dynamic creation, modification, and deletion of project showcases.",
-      "Implemented security headers, input sanitization, and structured JSON logging to monitor client requests and prevent unauthorized updates.",
-      "Configured modern deployment pipelines ensuring sub-second initial load and zero layout shift."
+      "Enables landlords to manage all their properties in one dashboard, automatically tracking which flats are available or occupied in real time.",
+      "Uses a dedicated Lease model to connect tenants and flats. This keeps a clean historical record over time—allowing tenants to rent multiple flats and flats to rotate through different tenants seamlessly.",
+      "Records monthly rental dues with built-in support for partial payments. The system automatically calculates the remaining balance on the fly and updates payment statuses (pending, partial, paid, overdue) based on the payment date and due date.",
+      "Built using FastAPI (Python), PostgreSQL, SQLAlchemy ORM, and Pydantic for fast performance, strict data validation, and clean REST APIs ready for a React + TypeScript frontend."
     ],
-    techStack: ["React", "TypeScript", "Tailwind CSS", "FastAPI / Python", "PostgreSQL", "REST API"],
+    techStack: ["React", "TypeScript", "Tailwind CSS", "FastAPI / Python","Uvicorn","Pydantic","PostgreSQL", "Sqlalchmey"],
     metrics: [
-      { label: "Lighthouse Performance", value: "99 / 100" },
-      { label: "Auth Scheme", value: "Admin Header Guard" },
-      { label: "Design System", value: "Custom Minimalist Dark" }
+      { label: "API Architecture", value: "RESTful+Fastapi" },
+      { label: "Data Integrity", value: "Postgress Relational Schema" },
+      { label: "Billing Engine", value: "Real-Time Balance & Dues Computation" }
     ],
-    githubUrl: "https://github.com/SaphalKhatri",
+    githubUrl: "https://github.com/SaphalKhatri/Ghar-Dhani",
     architectureHighlights: [
-      "Strict separation of concerns between presentation and data layer.",
-      "Secure backend endpoints with credential headers and rate-limiting safeguards.",
-      "Single-page navigation with browser history and route synchronization."
+      "Decoupled relational architecture connecting Flats and Tenants through an intermediary Lease model for full tenancy lifecycle history.",
+      "Layered data flow combining Pydantic v2 schemas for strict request/response validation with SQLAlchemy ORM for transaction-safe persistence.",
+      "State-driven billing engine that dynamically computes remaining balances and automates flat occupancy transitions."
     ]
   }
 ];
