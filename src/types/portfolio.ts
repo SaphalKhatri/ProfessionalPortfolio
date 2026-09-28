@@ -1,6 +1,6 @@
 export type PageId = 'about' | 'projects' | 'skills' | 'memories' | 'bug-smasher' | 'api-explorer' | 'contact';
 
-export type MemoryCategory = 'Bites & Brew' | 'College' | 'Hackathons' | 'Campus Life' | 'Meetups' | 'Travel';
+export type MemoryCategory = 'Bites & Brew' | 'College' | 'Hackathons' | 'Meetups' | 'Travel';
 
 export interface MemoryItem {
   id: string;

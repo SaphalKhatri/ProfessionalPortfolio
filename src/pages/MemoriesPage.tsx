@@ -373,7 +373,7 @@ export const MemoriesPage: React.FC = () => {
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
-  const categories: CategoryFilter[] = ['All', 'Bites & Brew', 'College', 'Hackathons', 'Campus Life', 'Meetups', 'Travel'];
+  const categories: CategoryFilter[] = ['All', 'Bites & Brew', 'College', 'Hackathons', 'Meetups', 'Travel'];
 
   const filteredMemories = allMemories.filter((item) => {
     const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
@@ -991,7 +991,7 @@ export const MemoriesPage: React.FC = () => {
                     <option value="Bites & Brew">Bites & Brew</option>
                     <option value="College">College</option>
                     <option value="Hackathons">Hackathons</option>
-                    <option value="Campus Life">Campus Life</option>
+                   
                     <option value="Meetups">Meetups</option>
                     <option value="Travel">Travel</option>
                   </select>
